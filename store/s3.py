@@ -2,7 +2,7 @@ from botocore.config import Config
 import logging
 import boto3
 from botocore.exceptions import ClientError
-import requests
+from django.conf import settings
 
 
 s3_config = Config(
@@ -13,6 +13,30 @@ s3_config = Config(
     },
     s3={'addressing_style': 'path'}
 )
+
+
+def create_presigned_url(bucket_name, object_name, expiration=3600):
+    """Generate a presigned URL to share an S3 object
+
+    :param bucket_name: string
+    :param object_name: string
+    :param expiration: Time in seconds for the presigned URL to remain valid
+    :return: Presigned URL as string. If error, returns None.
+    """
+
+    # Generate a presigned URL for the S3 object
+    s3_client = boto3.client('s3', config=s3_config)
+    try:
+        response = s3_client.generate_presigned_url('get_object',
+                                                    Params={'Bucket': bucket_name,
+                                                            'Key': object_name},
+                                                    ExpiresIn=expiration)
+    except ClientError as e:
+        logging.error(e)
+        return None
+
+    # The response contains the presigned URL
+    return response
 
 
 def create_presigned_post(bucket_name, object_name,
@@ -46,16 +70,15 @@ def create_presigned_post(bucket_name, object_name,
     return response
 
 
-def upload_file():
-    # Generate a presigned S3 POST URL
-    object_name = 'test_presigned_upload.txt'
-    response = create_presigned_post('geskens-shorttermstore-data', object_name)
-    if response is None:
-        exit(1)
+def create_presigned_post_with_config(object_name):
+    return create_presigned_post(
+        bucket_name=settings.UPLOAD_BUCKET,
+        object_name=object_name
+    )
 
-    # Demonstrate how another Python program can use the presigned URL to upload a file
-    with open(object_name, 'rb') as f:
-        files = {'file': (object_name, f)}
-        http_response = requests.post(response['url'], data=response['fields'], files=files)
-    # If successful, returns HTTP status code 204
-    print(f'File upload HTTP status code: {http_response.status_code}')
+
+def create_presigned_url_with_config(object_name):
+    return create_presigned_url(
+        bucket_name=settings.UPLOAD_BUCKET,
+        object_name=object_name
+    )
