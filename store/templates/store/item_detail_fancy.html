@@ -55,6 +55,7 @@
                         field-name="file"
                         @added="fetchUploadParams"
                         @uploaded="handleUploaded"
+                        @finish="uploadVisible=false"
                         label="Upload"
                         multiple
                         style="max-width: 300px"
