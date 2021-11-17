@@ -19,6 +19,7 @@ class Item(models.Model):
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
+    name = models.CharField(max_length=255, blank=True)
     text = models.TextField(blank=True)
 
     objects = ItemManager()
@@ -28,6 +29,10 @@ class Item(models.Model):
 
     def shortcut_expires(self):
         return self.created + timedelta(minutes=5)
+
+    @property
+    def display_name(self):
+        return self.name or f'Store {self.guid}'
 
 
 class Upload(models.Model):

@@ -28,10 +28,15 @@ def item_detail(request, item_shortcut=''):
             if 'text' in data:
                 item.text = data['text']
                 item.save()
+            if 'name' in data:
+                item.name = data['name']
+                item.save()
             return HttpResponse('OK')
 
         if 'json' in request.GET:
             return JsonResponse({
+                'name': item.name,
+                'display_name': item.display_name,
                 'text': item.text,
                 'uploads': [
                     {

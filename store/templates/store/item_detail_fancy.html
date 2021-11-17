@@ -10,6 +10,8 @@
           type="text/css">
     <link href="https://cdn.jsdelivr.net/npm/animate.css@^4.0.0/animate.min.css" rel="stylesheet" type="text/css">
     <link href="https://cdn.jsdelivr.net/npm/quasar@2.1.8/dist/quasar.prod.css" rel="stylesheet" type="text/css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ item.display_name }}</title>
 </head>
 
 <body>
@@ -21,7 +23,14 @@
         <q-header elevated class="bg-primary text-white">
             <q-toolbar>
                 <q-toolbar-title>
-                    Store {{ item.guid }}
+                    <div class="cursor-pointer">
+                        <span v-html="name"></span>
+                        <q-popup-edit v-model="newName" auto-save v-slot="scope">
+                            <q-input v-model="scope.value" dense autofocus auto-save @keyup.enter="scope.set"/>
+                        </q-popup-edit>
+                        <q-tooltip>Edit title</q-tooltip>
+                    </div>
+{#                    <span v-model="name"></span>#}
                 </q-toolbar-title>
                 <q-btn flat round dense icon="upload" @click="uploadVisible=!uploadVisible">
                     <q-tooltip>Upload</q-tooltip>
@@ -142,17 +151,30 @@
         },
         data() {
             return {
+                name: 'Store {{ item.guid }}',
+                newName: '',
                 text: '',
                 uploads: [],
                 uploadVisible: false,
                 updateInterval: null,
                 changeTimeout: null,
-                uploadParamsCache: {}
+                uploadParamsCache: {},
+                dataLoaded: false
             }
         },
         created() {
             this.update();
             this.setUpdateInterval();
+        },
+        watch: {
+            newName(val) {
+                if (!this.dataLoaded)
+                    return;
+                let that = this;
+                this.submitData({name: val}).then(function (response){
+                    that.update();
+                });
+            }
         },
         methods: {
             setUpdateInterval() {
@@ -167,9 +189,13 @@
                 let that = this;
                 fetch('{{ request.path }}?json').then(function (response) {
                     response.json().then(function (jsonResponse) {
+                        that.dataLoaded = true;
                         // console.log(jsonResponse);
                         that.text = jsonResponse.text;
+                        that.name = jsonResponse.display_name;
+                        that.newName = jsonResponse.name;
                         that.uploads = jsonResponse.uploads;
+                        window.document.title = jsonResponse.display_name;
                     });
                 });
             },
@@ -181,15 +207,18 @@
                     that.submitChange();
                 }, 500);
             },
-            submitChange() {
-                fetch('{{ request.path }}', {
+            submitData(data) {
+                return fetch('{{ request.path }}', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': '{{ csrf_token }}'
                     },
-                    body: JSON.stringify({'text': this.text})
-                }).then(function (result) {
+                    body: JSON.stringify(data)
+                });
+            },
+            submitChange() {
+                this.submitData({'text': this.text}).then(function (result) {
                     console.log(result);
                 });
             },
