@@ -1,87 +1,309 @@
-<p>
-    <textarea id="text" cols="80" rows="24">{{ item.text }}</textarea>
-</p>
+<!DOCTYPE html>
+<html>
+<!--
+  WARNING! Make sure that you match all Quasar related
+  tags to the same version! (Below it's "@2.1.8")
+-->
 
-<p>
-    {% if item.shortcut_expires > now %}
-        <i><a href="/{{ item.shortcut }}/">https://shortterm.store/{{ item.shortcut }}/</a></i><br>
-        Short link expires in {{ item.shortcut_expires|timeuntil }}
-    {% endif %}
-</p>
+<head>
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900|Material+Icons" rel="stylesheet"
+          type="text/css">
+    <link href="https://cdn.jsdelivr.net/npm/animate.css@^4.0.0/animate.min.css" rel="stylesheet" type="text/css">
+    <link href="https://cdn.jsdelivr.net/npm/quasar@2.1.8/dist/quasar.prod.css" rel="stylesheet" type="text/css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ item.display_name }}</title>
+</head>
 
-<script type="text/javascript">
-    let text = document.getElementById('text');
-    text.focus();
-    text.selectionStart = text.value.length;
+<body>
+<!-- example of injection point where you write your app template -->
+<div id="q-app">
 
-    function getSelectionText() {
-        var text = "";
-        var activeEl = document.activeElement;
-        var activeElTagName = activeEl ? activeEl.tagName.toLowerCase() : null;
-        if (
-          (activeElTagName == "textarea") || (activeElTagName == "input" &&
-          /^(?:text|search|password|tel|url)$/i.test(activeEl.type)) &&
-          (typeof activeEl.selectionStart == "number")
-        ) {
-            text = activeEl.value.slice(activeEl.selectionStart, activeEl.selectionEnd);
-        } else if (window.getSelection) {
-            text = window.getSelection().toString();
-        }
-        return text;
-    }
+    <q-layout view="hHh lpR fFf">
 
-    function debounce(handler, delay){
-        let timeout = null;
-        function trigger(){
-            if (timeout !== null){
-                clearTimeout(timeout);
+        <q-header elevated class="bg-primary text-white">
+            <q-toolbar>
+                <q-toolbar-title>
+                    <div class="cursor-pointer">
+                        <span v-html="name"></span>
+                        <q-popup-edit v-model="newName" auto-save v-slot="scope">
+                            <q-input v-model="scope.value" dense autofocus auto-save @keyup.enter="scope.set"/>
+                        </q-popup-edit>
+                        <q-tooltip>Edit title</q-tooltip>
+                    </div>
+{#                    <span v-model="name"></span>#}
+                </q-toolbar-title>
+                <q-btn flat round dense icon="upload" @click="uploadVisible=!uploadVisible">
+                    <q-tooltip>Upload</q-tooltip>
+                </q-btn>
+            </q-toolbar>
+            {% if item.shortcut_expires > now %}
+                {{ short_link_expires }}
+                <q-toolbar v-if="in_db && short_link_expires !== null">
+                    <p class="text-body2">
+                        <a style="color: white;" href="/{{ item.shortcut }}/">shortterm.store/{{ item.shortcut }}</a>
+                        &nbsp;<em>Short link expires in {% verbatim %}{{ short_link_expires }}{% endverbatim %}</em>
+                    </p>
+                </q-toolbar>
+            {% endif %}
+        </q-header>
+
+        <q-page-container>
+            <div class="q-pa-md" v-if="uploadVisible">
+                <q-uploader
+                        ref="uploader"
+                        :url="getUploadUrl"
+                        :form-fields="getUploadFormFields"
+                        field-name="file"
+                        @added="fetchUploadParams"
+                        @uploaded="handleUploaded"
+                        @finish="uploadVisible=false"
+                        label="Upload"
+                        multiple
+                        style="max-width: 300px"
+                ></q-uploader>
+            </div>
+            <div v-if="uploads.length > 0">
+                <div class="q-pa-md row items-start q-gutter-md">
+                    <q-card class="my-card" v-for="upload in uploads">
+                        <q-card-section>
+                            <div class="row items-center no-wrap">
+                                <div class="col">
+                                    <div class="text-subtitle1">
+                                        <q-icon :name="upload.is_image ? 'image' : 'file_present'"></q-icon>
+                                        &nbsp;
+                                        <a :href="upload.url" v-html="upload.filename"></a>
+                                    </div>
+                                </div>
+
+                                <div class="col-auto">
+                                    <q-btn color="grey-7" round flat icon="more_vert">
+                                        <q-menu cover auto-close>
+                                            <q-list>
+                                                <q-item clickable>
+                                                    <q-item-section @click="deleteUpload(upload.guid)">Delete</q-item-section>
+                                                </q-item>
+                                            </q-list>
+                                        </q-menu>
+                                    </q-btn>
+                                </div>
+                            </div>
+                        </q-card-section>
+
+{#                        <q-item>#}
+{#                            <q-item-section>#}
+{#                                <q-item-label v-html="upload.filename"></q-item-label>#}
+                                {#                      <q-item-label caption>Subhead</q-item-label>#}
+{#                            </q-item-section>#}
+{#                        </q-item>#}
+
+                        <q-img
+                                v-if="upload.is_image"
+                                :src="upload.url"
+                                style="max-width: 300px; height: 100px;"
+                                fit="scale-down"
+                        >
+                        </q-img>
+                    </q-card>
+
+
+{#                    <q-card>#}
+{#                        <q-card-section>#}
+{#                            {% verbatim %}#}
+{#                            <ul>#}
+{#                                <li v-for="upload in uploads" :key="upload.filename">#}
+{#                                    <a :href="upload.url">{{ upload.filename }}</a>#}
+{#                                </li>#}
+{#                            </ul>#}
+{#                            {% endverbatim %}#}
+{#                        </q-card-section>#}
+{#                    </q-card>#}
+                </div>
+            </div>
+
+            <div class="q-pa-md">
+                <q-input
+                        v-model="text"
+                        autogrow
+                        outlined
+                        type="textarea"
+                        v-on:keydown="handleChange()"
+                ></q-input>
+            </div>
+
+
+        </q-page-container>
+
+    </q-layout>
+
+</div>
+
+<!-- Add the following at the end of your body tag -->
+<script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quasar@2.1.8/dist/quasar.umd.prod.js"></script>
+
+<script>
+    /*
+      Example kicking off the UI. Obviously, adapt this to your specific needs.
+      Assumes you have a <div id="q-app"></div> in your <body> above
+     */
+    const app = Vue.createApp({
+        setup() {
+            {#let vm = {text: ''};#}
+            {#return vm;#}
+        },
+        data() {
+            return {
+                name: 'Store {{ item.guid }}',
+                newName: '',
+                text: '',
+                uploads: [],
+                uploadVisible: false,
+                updateInterval: null,
+                changeTimeout: null,
+                uploadParamsCache: {},
+                dataLoaded: false,
+                in_db: false,
+                short_link_expires: null
             }
-            timeout = setTimeout(handler, delay);
-        }
-        return trigger;
-    }
-
-    function debounceInterval(handler, period){
-        let interval = null;
-        function trigger(){
-            if (interval !== null){
-                clearInterval(interval);
+        },
+        created() {
+            this.update();
+            this.setUpdateInterval();
+        },
+        watch: {
+            newName(val) {
+                if (!this.dataLoaded)
+                    return;
+                let that = this;
+                this.submitData({name: val}).then(function (response){
+                    that.update();
+                });
             }
-            interval = setInterval(handler, period);
-        }
-        return trigger;
-    }
-
-    let resetUpdateInterval = debounceInterval(function(){
-        if (!getSelectionText() || getSelectionText() === '') {
-            location.reload();
-        }
-    }, 3000);
-    resetUpdateInterval();
-
-    let changeHandler = debounce(function(){
-        fetch('{{ request.path }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token }}'
+        },
+        methods: {
+            setUpdateInterval() {
+                let that = this;
+                if (that.updateInterval !== null)
+                    clearInterval(that.updateInterval);
+                that.updateInterval = setInterval(function () {
+                    that.update();
+                }, 3000);
             },
-            body: JSON.stringify({'text': text.value})
-        }).then(function(result){
-            console.log(result);
-        });
-    }, 500);
+            update() {
+                let that = this;
+                fetch('{{ request.path }}?json').then(function (response) {
+                    response.json().then(function (jsonResponse) {
+                        that.dataLoaded = true;
+                        // console.log(jsonResponse);
+                        that.text = jsonResponse.text;
+                        that.name = jsonResponse.display_name;
+                        that.newName = jsonResponse.name;
+                        that.uploads = jsonResponse.uploads;
+                        that.in_db = jsonResponse.in_db;
+                        that.short_link_expires = jsonResponse.short_link_expires;
+                        window.document.title = jsonResponse.display_name;
+                    });
+                });
+            },
+            setChangeTimeout() {
+                let that = this;
+                if (that.changeTimeout !== null)
+                    clearTimeout(that.changeTimeout);
+                that.changeTimeout = setTimeout(function () {
+                    that.submitChange();
+                }, 500);
+            },
+            submitData(data) {
+                return fetch('{{ request.path }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify(data)
+                });
+            },
+            submitChange() {
+                this.submitData({'text': this.text}).then(function (result) {
+                    console.log(result);
+                });
+            },
+            handleChange() {
+                this.setUpdateInterval();
+                this.setChangeTimeout();
+            },
+            getUploadParamsCacheKey(file) {
+                return file.name + file.size;
+            },
+            fetchUploadParams(files) {
+                let that = this;
+                for (let file of files) {
+                    let key = this.getUploadParamsCacheKey(file);
+                    let formData = new FormData();
+                    formData.append('filename', file.name);
+                    fetch('{{ request.path }}generate-upload-params/', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: formData
+                    }).then(function (result) {
+                        result.json().then(function (resultData) {
+                            that.uploadParamsCache[key] = resultData;
+                            console.log(that.uploadParamsCache);
+                        });
+                    });
+                }
+            },
+            getUploadUrl(files) {
+                const url = this.uploadParamsCache[this.getUploadParamsCacheKey(files[0])].url;
+                console.log('getUploadUrl', url);
+                return url;
+            },
+            getUploadFormFields(files) {
+                const fields = this.uploadParamsCache[this.getUploadParamsCacheKey(files[0])].fields;
+                const formFields = [];
+                for (const [key, value] of Object.entries(fields)) {
+                    formFields.push({name: key, value: value});
+                }
+                console.log('getUploadFormFields', formFields);
+                return formFields;
+            },
+            handleUploaded(info) {
+                // console.log('handleUploaded', info);
+                for (const file of info.files) {
+                    this.$refs.uploader.removeFile(file);
+                    fetch('{{ request.path }}upload/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify({
+                            'key': '{{ item.guid }}/' + file.name,
+                            'url': info.xhr.responseURL + '/{{ item.guid }}/' + file.name
+                        })
+                    }).then(function (result) {
+                        console.log(result);
+                    });
+                }
+            },
+            deleteUpload(upload_guid) {
+                this.uploads = this.uploads.filter(upload => upload.guid !== upload_guid);
+                fetch('{{ request.path }}upload/' + upload_guid + '/delete/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    }
+                }).then(function (result) {
+                    console.log(result);
+                });
+            }
+        }
+    });
 
-    function handleChange(event){
-        resetUpdateInterval();
-        changeHandler();
-    }
-
-    text.addEventListener('keyup', handleChange);
-    text.addEventListener('change', handleChange);
-
-    text.addEventListener('click', resetUpdateInterval);
-    text.addEventListener('touchstart', resetUpdateInterval);
-    text.addEventListener('touchmove', resetUpdateInterval);
-    window.addEventListener('mousemove', resetUpdateInterval);
+    app.use(Quasar)
+    app.mount('#q-app')
 </script>
+</body>
+</html>

@@ -28,7 +28,7 @@ class Item(models.Model):
         return str(self.guid)
 
     def shortcut_expires(self):
-        return self.created + timedelta(minutes=5)
+        return (self.created or now()) + timedelta(minutes=5)
 
     @property
     def display_name(self):

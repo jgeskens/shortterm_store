@@ -128,3 +128,14 @@ STATIC_URL = '/static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 UPLOAD_BUCKET = env('UPLOAD_BUCKET', default='')
+
+# Email settings
+
+EMAIL_HOST = 'email-smtp.eu-central-1.amazonaws.com'
+EMAIL_PORT = 465
+EMAIL_HOST_USER = env('SMTP_USERNAME', default='')
+if EMAIL_HOST_USER:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST_PASSWORD = env('SMTP_PASSWORD', default='')
+    EMAIL_USE_SSL = True
+    DEFAULT_FROM_EMAIL = 'Shortterm Store <no-reply@shortterm.store>'
