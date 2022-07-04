@@ -163,7 +163,8 @@
                 uploadParamsCache: {},
                 dataLoaded: false,
                 in_db: false,
-                short_link_expires: null
+                short_link_expires: null,
+                preventUpdates: false
             }
         },
         created() {
@@ -175,8 +176,11 @@
                 if (!this.dataLoaded)
                     return;
                 let that = this;
+                that.preventUpdates = true;
                 this.submitData({name: val}).then(function (response){
                     that.update();
+                }).finally(function(){
+                    that.preventUpdates = false;
                 });
             }
         },
@@ -190,9 +194,15 @@
                 }, 3000);
             },
             update() {
+                if (this.preventUpdates)
+                    return;
+
                 let that = this;
                 fetch('{{ request.path }}?json').then(function (response) {
                     response.json().then(function (jsonResponse) {
+                        if (that.preventUpdates)
+                            return;
+
                         that.dataLoaded = true;
                         // console.log(jsonResponse);
                         that.text = jsonResponse.text;
@@ -224,8 +234,12 @@
                 });
             },
             submitChange() {
-                this.submitData({'text': this.text}).then(function (result) {
+                let that = this;
+                that.preventUpdates = true;
+                that.submitData({'text': this.text}).then(function (result) {
                     console.log(result);
+                }).finally(function(){
+                    that.preventUpdates = false;
                 });
             },
             handleChange() {
