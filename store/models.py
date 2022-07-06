@@ -9,9 +9,11 @@ from . import utils
 
 
 class ItemManager(models.Manager):
-    def cleanup(self):
+    def cleanup_inactive(self):
         self.filter(modified__lt=now() - timedelta(hours=1)).delete()
 
+    def cleanup_empty(self):
+        self.filter(name='', text='', uploads__isnull=True).delete()
 
 class Item(models.Model):
     guid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
