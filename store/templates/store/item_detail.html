@@ -1,9 +1,5 @@
 <!DOCTYPE html>
 <html>
-<!--
-  WARNING! Make sure that you match all Quasar related
-  tags to the same version! (Below it's "@2.1.8")
--->
 
 <head>
     <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900|Material+Icons" rel="stylesheet"
@@ -12,10 +8,35 @@
     <link href="https://cdn.jsdelivr.net/npm/quasar@2.1.8/dist/quasar.prod.css" rel="stylesheet" type="text/css">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ item.display_name }}</title>
+    <style>
+        .markdown-container img {
+            max-width: 100%;
+        }
+        .markdown-container h1, .markdown-container h2, .markdown-container h3, .markdown-container h4, .markdown-container h5, .markdown-container h6 {
+            margin-top: 0;
+        }
+        .markdown-container h1 {
+            font-size: 2rem;
+            line-height: 2rem;
+        }
+        .markdown-container h2 {
+            font-size: 1.5rem;
+            line-height: 1.5rem;
+            font-weight: bold;
+        }
+        .markdown-container h3 {
+            font-size: 1.3rem;
+            line-height: 1.3rem;
+        }
+        .markdown-container h4 {
+            font-size: 1rem;
+            line-height: 1rem;
+            font-weight: bold;
+        }
+    </style>
 </head>
 
 <body>
-<!-- example of injection point where you write your app template -->
 <div id="q-app">
 
     <q-layout view="hHh lpR fFf">
@@ -30,8 +51,17 @@
                         </q-popup-edit>
                         <q-tooltip>Edit title</q-tooltip>
                     </div>
-{#                    <span v-model="name"></span>#}
+                    {#                    <span v-model="name"></span>#}
                 </q-toolbar-title>
+                <q-select standout
+                          v-model="mode"
+                          :options="mode_options"
+                          label="Mode"
+                          :map-options="true"
+                          :emit-value="true"
+                          :dense="true"
+                          :options-dense="true"
+                          @update:model-value="handleChange()"></q-select>
                 <q-btn flat round dense icon="upload" @click="uploadVisible=!uploadVisible">
                     <q-tooltip>Upload</q-tooltip>
                 </q-btn>
@@ -48,7 +78,9 @@
         </q-header>
 
         <q-page-container>
-            <div class="q-pa-md" v-if="uploadVisible">
+            <div class="fit row wrap justify-start items-start content-start">
+                <div class="col-md col-xs-12" v-if="mode=='simple' || mode=='editor'">
+                    <div class="q-pa-md" v-if="uploadVisible">
                 <q-uploader
                         ref="uploader"
                         :url="getUploadUrl"
@@ -62,74 +94,87 @@
                         style="max-width: 300px"
                 ></q-uploader>
             </div>
-            <div v-if="uploads.length > 0">
-                <div class="q-pa-md row items-start q-gutter-md">
-                    <q-card class="my-card" v-for="upload in uploads">
-                        <q-card-section>
-                            <div class="row items-center no-wrap">
-                                <div class="col">
-                                    <div class="text-subtitle1">
-                                        <q-icon :name="upload.is_image ? 'image' : 'file_present'"></q-icon>
-                                        &nbsp;
-                                        <a :href="upload.url" v-html="upload.filename"></a>
+                    <div v-if="uploads.length > 0">
+                        <div class="q-pa-md row items-start q-gutter-md">
+                            <q-card class="my-card" v-for="upload in uploads">
+                                <q-card-section>
+                                    <div class="row items-center no-wrap">
+                                        <div class="col">
+                                            <div class="text-subtitle1">
+                                                <q-icon :name="upload.is_image ? 'image' : 'file_present'"></q-icon>
+                                                &nbsp;
+                                                <a :href="upload.url" v-html="upload.filename"></a>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-auto">
+                                            <q-btn color="grey-7" round flat icon="more_vert">
+                                                <q-menu cover auto-close>
+                                                    <q-list>
+                                                        <q-item clickable>
+                                                            <q-item-section @click="deleteUpload(upload.guid)">Delete
+                                                            </q-item-section>
+                                                        </q-item>
+                                                    </q-list>
+                                                </q-menu>
+                                            </q-btn>
+                                        </div>
                                     </div>
-                                </div>
+                                </q-card-section>
 
-                                <div class="col-auto">
-                                    <q-btn color="grey-7" round flat icon="more_vert">
-                                        <q-menu cover auto-close>
-                                            <q-list>
-                                                <q-item clickable>
-                                                    <q-item-section @click="deleteUpload(upload.guid)">Delete</q-item-section>
-                                                </q-item>
-                                            </q-list>
-                                        </q-menu>
-                                    </q-btn>
-                                </div>
-                            </div>
-                        </q-card-section>
-
-{#                        <q-item>#}
-{#                            <q-item-section>#}
-{#                                <q-item-label v-html="upload.filename"></q-item-label>#}
+                                {#                        <q-item>#}
+                                {#                            <q-item-section>#}
+                                {#                                <q-item-label v-html="upload.filename"></q-item-label>#}
                                 {#                      <q-item-label caption>Subhead</q-item-label>#}
-{#                            </q-item-section>#}
-{#                        </q-item>#}
+                                {#                            </q-item-section>#}
+                                {#                        </q-item>#}
 
-                        <q-img
-                                v-if="upload.is_image"
-                                :src="upload.url"
-                                style="max-width: 300px; height: 100px;"
-                                fit="scale-down"
-                        >
-                        </q-img>
-                    </q-card>
+                                <q-img
+                                        v-if="upload.is_image"
+                                        :src="upload.url"
+                                        style="max-width: 300px; height: 100px;"
+                                        fit="scale-down"
+                                >
+                                </q-img>
+                            </q-card>
 
 
-{#                    <q-card>#}
-{#                        <q-card-section>#}
-{#                            {% verbatim %}#}
-{#                            <ul>#}
-{#                                <li v-for="upload in uploads" :key="upload.filename">#}
-{#                                    <a :href="upload.url">{{ upload.filename }}</a>#}
-{#                                </li>#}
-{#                            </ul>#}
-{#                            {% endverbatim %}#}
-{#                        </q-card-section>#}
-{#                    </q-card>#}
+                            {#                    <q-card>#}
+                            {#                        <q-card-section>#}
+                            {#                            {% verbatim %}#}
+                            {#                            <ul>#}
+                            {#                                <li v-for="upload in uploads" :key="upload.filename">#}
+                            {#                                    <a :href="upload.url">{{ upload.filename }}</a>#}
+                            {#                                </li>#}
+                            {#                            </ul>#}
+                            {#                            {% endverbatim %}#}
+                            {#                        </q-card-section>#}
+                            {#                    </q-card>#}
+                        </div>
+                    </div>
+
+                    <div class="q-pa-md">
+                        <q-input
+                                v-model="text"
+                                autogrow
+                                outlined
+                                type="textarea"
+                                v-on:keydown="handleChange()"
+                                @paste="handlePaste"
+                        ></q-input>
+                    </div>
+                </div>
+
+                <div class="col-md col-xs-12" v-if="mode=='editor' || mode=='reader'">
+                     <div class="q-pa-md">
+                        <q-card flat bordered>
+                            <q-card-section>
+                                <div class="markdown-container" v-html="markdown_parse(text)"></div>
+                            </q-card-section>
+                        </q-card>
+                    </div>
                 </div>
             </div>
-
-            <div class="q-pa-md">
-                <q-input
-                        v-model="text"
-                        autogrow
-                        outlined
-                        type="textarea"
-                        v-on:keydown="handleChange()"
-                ></q-input>
-            </div>
-
 
         </q-page-container>
 
@@ -137,19 +182,19 @@
 
 </div>
 
-<!-- Add the following at the end of your body tag -->
 <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/quasar@2.1.8/dist/quasar.umd.prod.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.0.19/marked.min.js"
+        integrity="sha512-CPGsmz+2yVpGnri/iBEoPVrRHiPaHQ3gzuSCfmfnZ2KKF/GKMvW8S7uVFRbZD0uOVMaNYY4HCATeCShxZWgp6w=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.0/purify.min.js"
+        integrity="sha512-/hVAZO5POxCKdZMSLefw30xEVwjm94PAV9ynjskGbIpBvHO9EBplEcdUlBdCKutpZsF+La8Ag4gNrG0gAOn3Ig=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
 <script>
-    /*
-      Example kicking off the UI. Obviously, adapt this to your specific needs.
-      Assumes you have a <div id="q-app"></div> in your <body> above
-     */
     const app = Vue.createApp({
         setup() {
-            {#let vm = {text: ''};#}
-            {#return vm;#}
         },
         data() {
             return {
@@ -164,12 +209,20 @@
                 dataLoaded: false,
                 in_db: false,
                 short_link_expires: null,
-                preventUpdates: false
+                preventUpdates: false,
+                mode_options: [
+                    {label: 'Simple', value: 'simple'},
+                    {label: 'Markdown Editor', value: 'editor'},
+                    {label: 'Markdown Reader', value: 'reader'}
+                ],
+                mode: 'simple'
             }
         },
         created() {
+            let that = this;
             this.update();
             this.setUpdateInterval();
+
         },
         watch: {
             newName(val) {
@@ -177,9 +230,9 @@
                     return;
                 let that = this;
                 that.preventUpdates = true;
-                this.submitData({name: val}).then(function (response){
+                this.submitData({name: val}).then(function (response) {
                     that.update();
-                }).finally(function(){
+                }).finally(function () {
                     that.preventUpdates = false;
                 });
             }
@@ -207,6 +260,7 @@
                         // console.log(jsonResponse);
                         that.text = jsonResponse.text;
                         that.name = jsonResponse.display_name;
+                        that.mode = jsonResponse.mode;
                         that.newName = jsonResponse.name;
                         that.uploads = jsonResponse.uploads;
                         that.in_db = jsonResponse.in_db;
@@ -236,13 +290,14 @@
             submitChange() {
                 let that = this;
                 that.preventUpdates = true;
-                that.submitData({'text': this.text}).then(function (result) {
+                that.submitData({'text': this.text, 'mode': this.mode}).then(function (result) {
                     console.log(result);
-                }).finally(function(){
+                }).finally(function () {
                     that.preventUpdates = false;
                 });
             },
             handleChange() {
+                this.preventUpdates = true;
                 this.setUpdateInterval();
                 this.setChangeTimeout();
             },
@@ -312,6 +367,68 @@
                 }).then(function (result) {
                     console.log(result);
                 });
+            },
+            markdown_parse(text) {
+                return DOMPurify.sanitize(marked.parse(text));
+            },
+            handlePaste(event) {
+                let that = this;
+                if (event.clipboardData.files.length > 0) {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    let file = event.clipboardData.files[0];
+
+                    let input = event.target;
+                    input.setRangeText('![...uploading image...]()', input.selectionStart, input.selectionEnd, 'select');
+
+                    let filename = 'image_' + Date.now() + '.png';
+                    let formData = new FormData();
+                    formData.append('filename', filename);
+                    fetch('{{ request.path }}generate-upload-params/', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: formData
+                    }).then(function (result) {
+                        result.json().then(function (resultData) {
+                            console.log('uploadParams', resultData);
+                            let url = resultData.url;
+                            let formData = new FormData();
+                            for (let [key, value] of Object.entries(resultData.fields)) {
+                                formData.append(key, value);
+                            }
+                            formData.append('file', file, filename);
+                            fetch(url, {
+                                method: 'POST',
+                                body: formData
+                            }).then(function(result){
+                                console.log(result);
+                                fetch('{{ request.path }}upload/', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRFToken': '{{ csrf_token }}'
+                                    },
+                                    body: JSON.stringify({
+                                        'key': '{{ item.guid }}/' + filename,
+                                        'url': result.url + '/{{ item.guid }}/' + filename
+                                    })
+                                }).then(function (result) {
+                                    result.json().then(function(data){
+                                        console.log(data.url);
+                                        input.setRangeText('![](' + data.url + ')', input.selectionStart, input.selectionEnd, 'start');
+                                        input.selectionStart += 2;
+                                        input.setRangeText('insert image description here', input.selectionStart, input.selectionEnd, 'select');
+                                        that.text = input.value;
+                                        that.submitChange();
+                                    });
+                                });
+                            });
+                        });
+                    });
+                }
             }
         }
     });

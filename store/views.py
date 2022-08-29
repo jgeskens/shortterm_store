@@ -62,6 +62,9 @@ def item_detail(request, item_shortcut=''):
             if 'name' in data:
                 item.name = data['name']
                 item.save()
+            if 'mode' in data:
+                item.mode = data['mode']
+                item.save()
             return HttpResponse('OK')
 
         if 'json' in request.GET:
@@ -69,6 +72,7 @@ def item_detail(request, item_shortcut=''):
                 'in_db': in_db,
                 'name': item.name,
                 'display_name': item.display_name,
+                'mode': item.mode,
                 'shortcut': item.shortcut,
                 'text': item.text,
                 'short_link_expires': timeuntil(item.shortcut_expires()) if item.shortcut_expires() > now() else None,
@@ -104,8 +108,10 @@ def upload(request, item_guid):
     item = get_or_create_item(item_guid)
     data = json.loads(request.body.decode('utf-8'))
     assert 'url' in data and 'key' in data
-    models.Upload.objects.get_or_create(item=item, **data)
-    return HttpResponse('OK')
+    u, created = models.Upload.objects.get_or_create(item=item, **data)
+    return JsonResponse({
+        'url': reverse('upload_download', args=(str(item.guid), str(u.guid)))
+    })
 
 
 @require_POST
