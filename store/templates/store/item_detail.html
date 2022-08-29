@@ -53,10 +53,12 @@
                     </div>
                     {#                    <span v-model="name"></span>#}
                 </q-toolbar-title>
-                <q-select standout
+                <q-select borderless
                           v-model="mode"
                           :options="mode_options"
                           label="Mode"
+                          label-color="white"
+                          :dark="true"
                           :map-options="true"
                           :emit-value="true"
                           :dense="true"
@@ -78,9 +80,39 @@
         </q-header>
 
         <q-page-container>
-            <div class="fit row wrap justify-start items-start content-start">
-                <div class="col-md col-xs-12" v-if="mode=='simple' || mode=='editor'">
-                    <div class="q-pa-md" v-if="uploadVisible">
+
+            <q-carousel
+                    swipeable
+                    animated
+                    arrows
+                    thumbnails
+                    v-model="slide"
+                    v-model:fullscreen="fullscreen"
+                    infinite
+                    v-if="images.length > 0 &amp;&amp; fullscreen"
+            >
+                <q-carousel-slide
+                        v-for="(image, index) in images"
+                        :key="index"
+                        :name="image.url"
+                        :img-src="image.url"
+                ></q-carousel-slide>
+
+                <template v-slot:control>
+                    <q-carousel-control
+                            position="top-right"
+                            :offset="[18, 18]"
+                    >
+                        <q-btn
+                                push round dense color="white" text-color="primary"
+                                :icon="fullscreen ? 'close' : 'fullscreen'"
+                                @click="fullscreen = !fullscreen"
+                        ></q-btn>
+                    </q-carousel-control>
+                </template>
+            </q-carousel>
+
+            <div class="q-pa-md" v-if="uploadVisible">
                 <q-uploader
                         ref="uploader"
                         :url="getUploadUrl"
@@ -88,12 +120,15 @@
                         field-name="file"
                         @added="fetchUploadParams"
                         @uploaded="handleUploaded"
-                        @finish="uploadVisible=false"
+                        @finish="uploadVisible=false;"
                         label="Upload"
                         multiple
                         style="max-width: 300px"
                 ></q-uploader>
             </div>
+
+            <div class="fit row wrap justify-start items-start content-start">
+                <div class="col-md col-xs-12" v-if="mode=='simple' || mode=='editor'">
                     <div v-if="uploads.length > 0">
                         <div class="q-pa-md row items-start q-gutter-md">
                             <q-card class="my-card" v-for="upload in uploads">
@@ -134,6 +169,7 @@
                                         :src="upload.url"
                                         style="max-width: 300px; height: 100px;"
                                         fit="scale-down"
+                                        @click="fullscreen=true; slide=upload.url"
                                 >
                                 </q-img>
                             </q-card>
@@ -160,6 +196,7 @@
                                 outlined
                                 type="textarea"
                                 v-on:keydown="handleChange()"
+                                v-on:keyup="handleKeyup"
                                 @paste="handlePaste"
                         ></q-input>
                     </div>
@@ -192,6 +229,10 @@
         integrity="sha512-/hVAZO5POxCKdZMSLefw30xEVwjm94PAV9ynjskGbIpBvHO9EBplEcdUlBdCKutpZsF+La8Ag4gNrG0gAOn3Ig=="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/expr-eval/0.10.0/bundle.min.js"
+        integrity="sha512-+igwJj4NcCpguyr7R2azSh5Hl3qOsOKo1WAFbDCxXAPoxLqqgHE3zpU/twAxGsrQrC3Q6hnLurBDbYHYLD9SpQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
 <script>
     const app = Vue.createApp({
         setup() {
@@ -215,14 +256,34 @@
                     {label: 'Markdown Editor', value: 'editor'},
                     {label: 'Markdown Reader', value: 'reader'}
                 ],
-                mode: 'simple'
+                mode: 'simple',
+                slide: null,
+                fullscreen: false
             }
         },
         created() {
             let that = this;
             this.update();
             this.setUpdateInterval();
-
+            window.addEventListener('keydown', function(event){
+                if (event.code === 'Escape') {
+                    that.fullscreen = false;
+                } else if (event.code === 'ArrowLeft') {
+                    if (that.images.length === 0)
+                        return;
+                    let image_urls = that.images.map(i => i.url);
+                    let image_pos = image_urls.indexOf(that.slide);
+                    image_pos = (image_pos - 1 + image_urls.length) % image_urls.length;
+                    that.slide = image_urls[image_pos];
+                } else if (event.code === 'ArrowRight') {
+                    if (that.images.length === 0)
+                        return;
+                    let image_urls = that.images.map(i => i.url);
+                    let image_pos = image_urls.indexOf(that.slide);
+                    image_pos = (image_pos + 1) % image_urls.length;
+                    that.slide = image_urls[image_pos];
+                }
+            });
         },
         watch: {
             newName(val) {
@@ -235,6 +296,11 @@
                 }).finally(function () {
                     that.preventUpdates = false;
                 });
+            }
+        },
+        computed: {
+            images () {
+                return this.uploads.filter(u => u.is_image);
             }
         },
         methods: {
@@ -263,6 +329,10 @@
                         that.mode = jsonResponse.mode;
                         that.newName = jsonResponse.name;
                         that.uploads = jsonResponse.uploads;
+                        let images = that.uploads.filter(u => u.is_image);
+                        let image_urls = images.map(i => i.url);
+                        if (!that.slide || image_urls.indexOf(that.slide) === -1)
+                            that.slide = (images.length > 0 ? images[0].url : null);
                         that.in_db = jsonResponse.in_db;
                         that.short_link_expires = jsonResponse.short_link_expires;
                         window.document.title = jsonResponse.display_name;
@@ -369,7 +439,44 @@
                 });
             },
             markdown_parse(text) {
-                return DOMPurify.sanitize(marked.parse(text));
+                let that = this;
+                let html = DOMPurify.sanitize(marked.parse(text));
+
+                setTimeout(function(){
+                    window.vm = that;
+                    let imgs = document.getElementsByTagName('img');
+                    for (let img of imgs) {
+                        img.style.cursor = 'pointer';
+                        img.removeEventListener('click', handleImageClick);
+                        img.addEventListener('click', handleImageClick);
+                    }
+                }, 100);
+
+                return html;
+            },
+            handleKeyup(event){
+                let pos = event.target.selectionStart;
+                let char = event.target.value[pos-1];
+                if (char === '=' && event.code !== 'Backspace' && event.code !== 'Delete') {
+                    let input = event.target;
+                    let val = input.value;
+                    let start = val.lastIndexOf('\n', pos - 1) + 1;
+                    let end = val.indexOf('\n', pos);
+                    if (end === -1)
+                        end = val.length;
+                    let expression = val.substring(start, end-1);
+                    let result = this.evaluate_expression(expression);
+                    let extra = result.length + 1;
+                    if (result) {
+                        input.setRangeText(' ' + result, pos, input.selectionEnd, 'end');
+                        this.text = input.value;
+                        this.submitChange();
+                    }
+                }
+            },
+            evaluate_expression(expression) {
+                let expr = exprEval.Parser.parse(expression);
+                return expr.evaluate();
             },
             handlePaste(event) {
                 let that = this;
@@ -393,7 +500,6 @@
                         body: formData
                     }).then(function (result) {
                         result.json().then(function (resultData) {
-                            console.log('uploadParams', resultData);
                             let url = resultData.url;
                             let formData = new FormData();
                             for (let [key, value] of Object.entries(resultData.fields)) {
@@ -404,7 +510,6 @@
                                 method: 'POST',
                                 body: formData
                             }).then(function(result){
-                                console.log(result);
                                 fetch('{{ request.path }}upload/', {
                                     method: 'POST',
                                     headers: {
@@ -417,7 +522,6 @@
                                     })
                                 }).then(function (result) {
                                     result.json().then(function(data){
-                                        console.log(data.url);
                                         input.setRangeText('![](' + data.url + ')', input.selectionStart, input.selectionEnd, 'start');
                                         input.selectionStart += 2;
                                         input.setRangeText('insert image description here', input.selectionStart, input.selectionEnd, 'select');
@@ -432,6 +536,12 @@
             }
         }
     });
+
+    function handleImageClick(event) {
+        let url = event.target.src;
+        vm.slide = url.replace(/https?:\/\/[^/]*/, '');
+        vm.fullscreen = true;
+    }
 
     app.use(Quasar)
     app.mount('#q-app')
