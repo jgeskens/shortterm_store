@@ -2,10 +2,11 @@
 <html>
 
 <head>
-    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900|Material+Icons" rel="stylesheet"
-          type="text/css">
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900|Material+Icons" rel="stylesheet" type="text/css">
     <link href="https://cdn.jsdelivr.net/npm/animate.css@^4.0.0/animate.min.css" rel="stylesheet" type="text/css">
-    <link href="https://cdn.jsdelivr.net/npm/quasar@2.1.8/dist/quasar.prod.css" rel="stylesheet" type="text/css">
+    <link href="https://cdn.jsdelivr.net/npm/quasar@2.14.2/dist/quasar.prod.css" rel="stylesheet" type="text/css">
+
+
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ item.display_name }}</title>
     <style>
@@ -129,6 +130,21 @@
 
             <div class="fit row wrap justify-start items-start content-start">
                 <div class="col-md col-xs-12" v-if="mode=='simple' || mode=='editor'">
+
+
+                    <div class="q-pa-md">
+                        <q-input
+                                v-model="text"
+                                autogrow
+                                outlined
+                                type="textarea"
+                                v-on:keydown="handleChange()"
+                                v-on:keyup="handleKeyup"
+                                @paste="handlePaste"
+                        ></q-input>
+                    </div>
+
+
                     <div v-if="uploads.length > 0">
                         <div class="q-pa-md row items-start q-gutter-md">
                             <q-card class="my-card" v-for="upload in uploads">
@@ -157,13 +173,6 @@
                                     </div>
                                 </q-card-section>
 
-                                {#                        <q-item>#}
-                                {#                            <q-item-section>#}
-                                {#                                <q-item-label v-html="upload.filename"></q-item-label>#}
-                                {#                      <q-item-label caption>Subhead</q-item-label>#}
-                                {#                            </q-item-section>#}
-                                {#                        </q-item>#}
-
                                 <q-img
                                         v-if="upload.is_image"
                                         :src="upload.url"
@@ -173,32 +182,7 @@
                                 >
                                 </q-img>
                             </q-card>
-
-
-                            {#                    <q-card>#}
-                            {#                        <q-card-section>#}
-                            {#                            {% verbatim %}#}
-                            {#                            <ul>#}
-                            {#                                <li v-for="upload in uploads" :key="upload.filename">#}
-                            {#                                    <a :href="upload.url">{{ upload.filename }}</a>#}
-                            {#                                </li>#}
-                            {#                            </ul>#}
-                            {#                            {% endverbatim %}#}
-                            {#                        </q-card-section>#}
-                            {#                    </q-card>#}
                         </div>
-                    </div>
-
-                    <div class="q-pa-md">
-                        <q-input
-                                v-model="text"
-                                autogrow
-                                outlined
-                                type="textarea"
-                                v-on:keydown="handleChange()"
-                                v-on:keyup="handleKeyup"
-                                @paste="handlePaste"
-                        ></q-input>
                     </div>
                 </div>
 
@@ -219,8 +203,9 @@
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/quasar@2.1.8/dist/quasar.umd.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vue@3.4.13/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quasar@2.14.2/dist/quasar.umd.prod.js"></script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.0.19/marked.min.js"
         integrity="sha512-CPGsmz+2yVpGnri/iBEoPVrRHiPaHQ3gzuSCfmfnZ2KKF/GKMvW8S7uVFRbZD0uOVMaNYY4HCATeCShxZWgp6w=="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
