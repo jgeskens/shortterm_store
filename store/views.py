@@ -91,7 +91,11 @@ def item_detail(request, item_shortcut=''):
                 item.mode = data['mode']
                 item.save()
             if 'password' in data:
-                item.password = make_password(data['password'])
+                password = data['password']
+                if password:
+                    item.password = make_password(password)
+                else:
+                    item.password = ''
                 item.save()
             return HttpResponse('OK')
 
