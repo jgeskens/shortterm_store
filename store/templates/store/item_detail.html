@@ -104,6 +104,9 @@
                 <q-btn flat round dense icon="upload" @click="uploadVisible=!uploadVisible">
                     <q-tooltip>Upload</q-tooltip>
                 </q-btn>
+                <q-btn flat round dense icon="lock" @click="passwordDialog=true">
+                    <q-tooltip>Set password</q-tooltip>
+                </q-btn>
             </q-toolbar>
             {% if item.shortcut_expires > now %}
                 {{ short_link_expires }}
@@ -173,7 +176,7 @@
                 ></q-uploader>
             </div>
 
-            <div class="fit row wrap justify-start items-start content-start">
+            <div class="fit row wrap justify-start items-start content-start" v-if="!locked">
                 <div class="col-md col-xs-12" v-if="mode=='simple' || mode=='editor'">
 
 
@@ -257,6 +260,35 @@
                 </div>
             </div>
 
+            <q-dialog v-model="passwordDialog" persistent>
+                <q-card style="min-width: 350px">
+                    <q-card-section>
+                        <div class="text-h6">Set password</div>
+                    </q-card-section>
+                    <q-card-section class="q-pt-none">
+                        <q-input dense v-model="newPassword" autofocus @keyup.enter="setPassword" type="password" label="New password"/>
+                    </q-card-section>
+                    <q-card-actions align="right" class="text-primary">
+                        <q-btn flat label="Cancel" v-close-popup />
+                        <q-btn flat label="Set" @click="setPassword" v-close-popup />
+                    </q-card-actions>
+                </q-card>
+            </q-dialog>
+
+            <q-dialog v-model="promptPasswordDialog" persistent>
+                <q-card style="min-width: 350px">
+                    <q-card-section>
+                        <div class="text-h6">Password protected</div>
+                    </q-card-section>
+                    <q-card-section class="q-pt-none">
+                        <q-input dense v-model="inputPassword" autofocus @keyup.enter="verifyPassword" type="password" label="Enter password"/>
+                    </q-card-section>
+                    <q-card-actions align="right" class="text-primary">
+                        <q-btn flat label="Unlock" @click="verifyPassword" />
+                    </q-card-actions>
+                </q-card>
+            </q-dialog>
+
         </q-page-container>
 
     </q-layout>
@@ -294,6 +326,11 @@
                 uploadParamsCache: {},
                 dataLoaded: false,
                 in_db: false,
+                locked: false,
+                passwordDialog: false,
+                promptPasswordDialog: false,
+                newPassword: '',
+                inputPassword: '',
                 short_link_expires: null,
                 preventUpdates: false,
                 mode_options: [
@@ -386,7 +423,18 @@
                     return;
 
                 let that = this;
-                fetch('{{ request.path }}?json').then(function (response) {
+                const headers = {};
+                const storedPassword = localStorage.getItem('password-{{ item.guid }}');
+                if (storedPassword) {
+                    headers['X-Item-Password'] = storedPassword;
+                }
+
+                fetch('{{ request.path }}?json', {headers: headers}).then(function (response) {
+                    if (response.status === 403) {
+                        that.locked = true;
+                        that.promptPasswordDialog = true;
+                        return;
+                    }
                     response.json().then(function (jsonResponse) {
                         if (that.preventUpdates)
                             return;
@@ -397,7 +445,12 @@
                         that.name = jsonResponse.display_name;
                         that.mode = jsonResponse.mode;
                         that.newName = jsonResponse.name;
-                        that.uploads = jsonResponse.uploads;
+                        that.uploads = jsonResponse.uploads.map(function(upload) {
+                            if (storedPassword) {
+                                upload.url += (upload.url.indexOf('?') === -1 ? '?' : '&') + 'password=' + encodeURIComponent(storedPassword);
+                            }
+                            return upload;
+                        });
                         let images = that.uploads.filter(u => u.is_image);
                         let image_urls = images.map(i => i.url);
                         if (!that.slide || image_urls.indexOf(that.slide) === -1)
@@ -417,13 +470,54 @@
                 }, 500);
             },
             submitData(data) {
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                };
+                const storedPassword = localStorage.getItem('password-{{ item.guid }}');
+                if (storedPassword) {
+                    headers['X-Item-Password'] = storedPassword;
+                }
                 return fetch('{{ request.path }}', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(data)
+                });
+            },
+            setPassword() {
+                let that = this;
+                this.submitData({password: this.newPassword}).then(function () {
+                    localStorage.setItem('password-{{ item.guid }}', that.newPassword);
+                    that.newPassword = '';
+                    that.passwordDialog = false;
+                    that.$q.notify({
+                        message: 'Password set',
+                        color: 'positive'
+                    });
+                });
+            },
+            verifyPassword() {
+                let that = this;
+                fetch('{{ request.path }}verify-password/', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': '{{ csrf_token }}'
                     },
-                    body: JSON.stringify(data)
+                    body: JSON.stringify({password: this.inputPassword})
+                }).then(function (response) {
+                    if (response.ok) {
+                        localStorage.setItem('password-{{ item.guid }}', that.inputPassword);
+                        that.locked = false;
+                        that.promptPasswordDialog = false;
+                        that.update();
+                    } else {
+                        localStorage.removeItem('password-{{ item.guid }}');
+                        that.$q.notify({
+                            message: 'Incorrect password',
+                            color: 'negative'
+                        });
+                    }
                 });
             },
             submitChange() {
@@ -445,15 +539,20 @@
             },
             fetchUploadParams(files) {
                 let that = this;
+                const headers = {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                };
+                const storedPassword = localStorage.getItem('password-{{ item.guid }}');
+                if (storedPassword) {
+                    headers['X-Item-Password'] = storedPassword;
+                }
                 for (let file of files) {
                     let key = this.getUploadParamsCacheKey(file);
                     let formData = new FormData();
                     formData.append('filename', file.name);
                     fetch('{{ request.path }}generate-upload-params/', {
                         method: 'POST',
-                        headers: {
-                            'X-CSRFToken': '{{ csrf_token }}'
-                        },
+                        headers: headers,
                         body: formData
                     }).then(function (result) {
                         result.json().then(function (resultData) {
@@ -479,14 +578,19 @@
             },
             handleUploaded(info) {
                 // console.log('handleUploaded', info);
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                };
+                const storedPassword = localStorage.getItem('password-{{ item.guid }}');
+                if (storedPassword) {
+                    headers['X-Item-Password'] = storedPassword;
+                }
                 for (const file of info.files) {
                     this.$refs.uploader.removeFile(file);
                     fetch('{{ request.path }}upload/', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': '{{ csrf_token }}'
-                        },
+                        headers: headers,
                         body: JSON.stringify({
                             'key': '{{ item.guid }}/' + file.name,
                             'url': info.xhr.responseURL + '/{{ item.guid }}/' + file.name
@@ -498,11 +602,16 @@
             },
             deleteUpload(upload_guid) {
                 this.uploads = this.uploads.filter(upload => upload.guid !== upload_guid);
+                const headers = {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                };
+                const storedPassword = localStorage.getItem('password-{{ item.guid }}');
+                if (storedPassword) {
+                    headers['X-Item-Password'] = storedPassword;
+                }
                 fetch('{{ request.path }}upload/' + upload_guid + '/delete/', {
                     method: 'POST',
-                    headers: {
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    }
+                    headers: headers
                 }).then(function (result) {
                     console.log(result);
                 });

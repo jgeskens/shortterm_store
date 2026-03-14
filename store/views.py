@@ -11,10 +11,32 @@ from django.utils.timesince import timeuntil
 from django.utils.timezone import now
 from django.views.decorators.http import require_POST
 from django.conf import settings
+from django.contrib.auth.hashers import make_password, check_password
 
 from . import models
 from . import s3
 from . import utils
+
+
+def check_item_password(item, request):
+    if not item.password:
+        return True
+    
+    password = request.headers.get('X-Item-Password')
+    if not password and request.method == 'POST':
+        try:
+            data = json.loads(request.body.decode('utf-8'))
+            password = data.get('password')
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            pass
+    
+    if not password:
+        password = request.GET.get('password')
+    
+    if password and check_password(password, item.password):
+        return True
+    
+    return False
 
 
 def create_item_from_uuid(item_uuid: str, commit: bool = False) -> models.Item:
@@ -56,6 +78,9 @@ def item_detail(request, item_shortcut=''):
 
         if request.method == 'POST':
             data = json.loads(request.body.decode('utf-8'))
+            if not check_item_password(item, request):
+                return JsonResponse({'error': 'locked'}, status=403)
+
             if 'text' in data:
                 item.text = data['text']
                 item.save()
@@ -65,9 +90,20 @@ def item_detail(request, item_shortcut=''):
             if 'mode' in data:
                 item.mode = data['mode']
                 item.save()
+            if 'password' in data:
+                item.password = make_password(data['password'])
+                item.save()
             return HttpResponse('OK')
 
         if 'json' in request.GET:
+            if not check_item_password(item, request):
+                return JsonResponse({
+                    'has_password': True,
+                    'error': 'locked',
+                    'display_name': item.display_name,
+                    'in_db': in_db,
+                }, status=403)
+
             return JsonResponse({
                 'in_db': in_db,
                 'name': item.name,
@@ -75,6 +111,7 @@ def item_detail(request, item_shortcut=''):
                 'mode': item.mode,
                 'shortcut': item.shortcut,
                 'text': item.text,
+                'has_password': bool(item.password),
                 'short_link_expires': timeuntil(item.shortcut_expires()) if item.shortcut_expires() > now() else None,
                 'uploads': [
                     {
@@ -95,10 +132,10 @@ def item_detail(request, item_shortcut=''):
 
 @require_POST
 def generate_upload_params(request, item_guid):
-    filename = request.POST.get('filename')
-    if not filename:
-        raise Http404
     item = get_or_create_item(item_guid)
+    if not check_item_password(item, request):
+        return JsonResponse({'error': 'locked'}, status=403)
+    filename = request.POST.get('filename')
     object_path = f'{item.guid}/{filename}'
     response = s3.create_presigned_post_with_config(object_name=object_path)
     return JsonResponse(response)
@@ -107,6 +144,8 @@ def generate_upload_params(request, item_guid):
 @require_POST
 def upload(request, item_guid):
     item = get_or_create_item(item_guid)
+    if not check_item_password(item, request):
+        return JsonResponse({'error': 'locked'}, status=403)
     data = json.loads(request.body.decode('utf-8'))
     assert 'url' in data and 'key' in data
     u, created = models.Upload.objects.get_or_create(item=item, **data)
@@ -119,8 +158,20 @@ def upload(request, item_guid):
 
 
 @require_POST
+def verify_password(request, item_guid):
+    item = get_object_or_404(models.Item, guid=item_guid)
+    data = json.loads(request.body.decode('utf-8'))
+    password = data.get('password', '')
+    if check_password(password, item.password):
+        return JsonResponse({'correct': True})
+    return JsonResponse({'correct': False}, status=403)
+
+
+@require_POST
 def upload_delete(request, item_guid, upload_guid):
     item = get_object_or_404(models.Item, guid=item_guid)
+    if not check_item_password(item, request):
+        return JsonResponse({'error': 'locked'}, status=403)
     upload = get_object_or_404(models.Upload, item=item, guid=upload_guid)
     s3_client = boto3.client('s3')
     s3_client.delete_object(Bucket=settings.UPLOAD_BUCKET, Key=upload.key)
@@ -130,5 +181,7 @@ def upload_delete(request, item_guid, upload_guid):
 
 def upload_download(request, item_guid, upload_guid):
     item = get_object_or_404(models.Item, guid=item_guid)
+    if not check_item_password(item, request):
+        return HttpResponse('Locked', status=403)
     upload = get_object_or_404(models.Upload, item=item, guid=upload_guid)
     return redirect(upload.presigned_url)

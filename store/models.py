@@ -25,6 +25,7 @@ class Item(models.Model):
     name = models.CharField(max_length=255, blank=True)
     text = models.TextField(blank=True)
     mode = models.CharField(max_length=255, default='simple')
+    password = models.CharField(max_length=128, blank=True)
 
     objects = ItemManager()
 
