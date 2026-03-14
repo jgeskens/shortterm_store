@@ -51,6 +51,12 @@
         .q-carousel__slide {
             overflow: auto !important;
         }
+        .body--dark a:not(.q-btn) {
+            color: #2eb9ff !important;
+        }
+        .body--dark .markdown-container a {
+            color: #2eb9ff;
+        }
     </style>
 </head>
 
@@ -81,7 +87,20 @@
                           :emit-value="true"
                           :dense="true"
                           :options-dense="true"
+                          style="min-width: 150px"
                           @update:model-value="handleChange()"></q-select>
+                <q-select borderless
+                          v-model="darkMode"
+                          :options="darkModeOptions"
+                          label="Dark mode"
+                          label-color="white"
+                          :dark="true"
+                          :map-options="true"
+                          :emit-value="true"
+                          :dense="true"
+                          :options-dense="true"
+                          class="q-ml-md"
+                          style="min-width: 100px"></q-select>
                 <q-btn flat round dense icon="upload" @click="uploadVisible=!uploadVisible">
                     <q-tooltip>Upload</q-tooltip>
                 </q-btn>
@@ -90,7 +109,7 @@
                 {{ short_link_expires }}
                 <q-toolbar v-if="in_db && short_link_expires !== null">
                     <p class="text-body2">
-                        <a style="color: white;" href="/{{ item.shortcut }}/">shortterm.store/{{ item.shortcut }}</a>
+                        <a style="color: white !important;" href="/{{ item.shortcut }}/">shortterm.store/{{ item.shortcut }}</a>
                         &nbsp;<em>Short link expires in {% verbatim %}{{ short_link_expires }}{% endverbatim %}</em>
                     </p>
                 </q-toolbar>
@@ -283,6 +302,12 @@
                     {label: 'Markdown Reader', value: 'reader'}
                 ],
                 mode: 'simple',
+                darkMode: localStorage.getItem('darkMode') || 'auto',
+                darkModeOptions: [
+                    {label: 'On', value: 'on'},
+                    {label: 'Off', value: 'off'},
+                    {label: 'System', value: 'auto'}
+                ],
                 slide: null,
                 fullscreen: false,
                 zoomed: false,
@@ -296,6 +321,7 @@
         },
         created() {
             let that = this;
+            this.$q.dark.set(this.darkMode === 'on' ? true : (this.darkMode === 'off' ? false : 'auto'));
             this.update();
             this.setUpdateInterval();
             window.addEventListener('keydown', function(event){
@@ -335,6 +361,10 @@
                 }).finally(function () {
                     that.preventUpdates = false;
                 });
+            },
+            darkMode(val) {
+                this.$q.dark.set(val === 'on' ? true : (val === 'off' ? false : 'auto'));
+                localStorage.setItem('darkMode', val);
             }
         },
         computed: {
