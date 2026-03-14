@@ -34,6 +34,23 @@
             line-height: 1rem;
             font-weight: bold;
         }
+        .main-slide-image {
+            background-image: none !important;
+        }
+        .zoomed-img {
+            cursor: zoom-out;
+            transform: scale(2.5);
+            transition: transform 0.3s ease-in-out;
+            z-index: 10;
+            transform-origin: center center;
+        }
+        .unzoomed-img {
+            cursor: zoom-in;
+            transition: transform 0.3s ease-in-out;
+        }
+        .q-carousel__slide {
+            overflow: auto !important;
+        }
     </style>
 </head>
 
@@ -90,14 +107,23 @@
                     v-model="slide"
                     v-model:fullscreen="fullscreen"
                     infinite
-                    v-if="images.length > 0 &amp;&amp; fullscreen"
+                    v-if="images.length > 0 && fullscreen"
             >
                 <q-carousel-slide
                         v-for="(image, index) in images"
                         :key="index"
                         :name="image.url"
                         :img-src="image.url"
-                ></q-carousel-slide>
+                        class="no-padding main-slide-image"
+                >
+                    <q-img
+                            :src="image.url"
+                            fit="contain"
+                            height="100%"
+                            :class="zoomed ? 'zoomed-img' : 'unzoomed-img'"
+                            @click="zoomed = !zoomed"
+                    ></q-img>
+                </q-carousel-slide>
 
                 <template v-slot:control>
                     <q-carousel-control
@@ -259,6 +285,7 @@
                 mode: 'simple',
                 slide: null,
                 fullscreen: false,
+                zoomed: false,
                 columns: [
                     {name: 'preview', label: 'Preview', field: 'url', align: 'left'},
                     {name: 'filename', label: 'Filename', field: 'filename', align: 'left', sortable: true},
@@ -292,6 +319,12 @@
             });
         },
         watch: {
+            slide(val) {
+                this.zoomed = false;
+            },
+            fullscreen(val) {
+                this.zoomed = false;
+            },
             newName(val) {
                 if (!this.dataLoaded)
                     return;
@@ -550,7 +583,14 @@
 
     function handleImageClick(event) {
         let url = event.target.src;
-        vm.slide = url.replace(/https?:\/\/[^/]*/, '');
+        let relativeUrl = url.replace(/https?:\/\/[^/]*/, '');
+        // find if we have an upload with this url or relative url
+        let found = vm.images.find(i => i.url === url || i.url === relativeUrl);
+        if (found) {
+            vm.slide = found.url;
+        } else {
+            vm.slide = relativeUrl;
+        }
         vm.fullscreen = true;
     }
 
