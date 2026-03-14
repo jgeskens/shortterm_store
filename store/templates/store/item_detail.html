@@ -146,42 +146,57 @@
 
 
                     <div v-if="uploads.length > 0">
-                        <div class="q-pa-md row items-start q-gutter-md">
-                            <q-card class="my-card" v-for="upload in uploads">
-                                <q-card-section>
-                                    <div class="row items-center no-wrap">
-                                        <div class="col">
-                                            <div class="text-subtitle1">
-                                                <q-icon :name="upload.is_image ? 'image' : 'file_present'"></q-icon>
-                                                &nbsp;
-                                                <a :href="upload.url" v-html="upload.filename"></a>
-                                            </div>
-                                        </div>
+                        <div class="q-pa-md">
+                            <q-table
+                                    flat
+                                    bordered
+                                    title="Files"
+                                    :rows="uploads"
+                                    :columns="columns"
+                                    row-key="guid"
+                                    :pagination="{rowsPerPage: 0}"
+                                    hide-pagination
+                            >
+                                <template v-slot:body-cell-preview="props">
+                                    <q-td :props="props">
+                                        <q-img
+                                                v-if="props.row.is_image"
+                                                :src="props.row.url"
+                                                style="width: 50px; height: 50px;"
+                                                fit="scale-down"
+                                                @click="fullscreen=true; slide=props.row.url"
+                                                class="cursor-pointer"
+                                        ></q-img>
+                                        <q-icon v-else name="file_present" size="sm"></q-icon>
+                                    </q-td>
+                                </template>
 
-                                        <div class="col-auto">
-                                            <q-btn color="grey-7" round flat icon="more_vert">
-                                                <q-menu cover auto-close>
-                                                    <q-list>
-                                                        <q-item clickable>
-                                                            <q-item-section @click="deleteUpload(upload.guid)">Delete
-                                                            </q-item-section>
-                                                        </q-item>
-                                                    </q-list>
-                                                </q-menu>
-                                            </q-btn>
-                                        </div>
-                                    </div>
-                                </q-card-section>
+                                <template v-slot:body-cell-filename="props">
+                                    <q-td :props="props">
+                                        <a :href="props.row.url" v-html="props.row.filename"></a>
+                                    </q-td>
+                                </template>
 
-                                <q-img
-                                        v-if="upload.is_image"
-                                        :src="upload.url"
-                                        style="max-width: 300px; height: 100px;"
-                                        fit="scale-down"
-                                        @click="fullscreen=true; slide=upload.url"
-                                >
-                                </q-img>
-                            </q-card>
+                                <template v-slot:body-cell-modified="props">
+                                    <q-td :props="props">
+                                        {% verbatim %}{{ formatDate(props.row.modified) }}{% endverbatim %}
+                                    </q-td>
+                                </template>
+
+                                <template v-slot:body-cell-actions="props">
+                                    <q-td :props="props">
+                                        <q-btn color="grey-7" round flat icon="more_vert">
+                                            <q-menu cover auto-close>
+                                                <q-list>
+                                                    <q-item clickable @click="deleteUpload(props.row.guid)">
+                                                        <q-item-section>Delete</q-item-section>
+                                                    </q-item>
+                                                </q-list>
+                                            </q-menu>
+                                        </q-btn>
+                                    </q-td>
+                                </template>
+                            </q-table>
                         </div>
                     </div>
                 </div>
@@ -243,7 +258,13 @@
                 ],
                 mode: 'simple',
                 slide: null,
-                fullscreen: false
+                fullscreen: false,
+                columns: [
+                    {name: 'preview', label: 'Preview', field: 'url', align: 'left'},
+                    {name: 'filename', label: 'Filename', field: 'filename', align: 'left', sortable: true},
+                    {name: 'modified', label: 'Modified', field: 'modified', align: 'left', sortable: true},
+                    {name: 'actions', label: 'Actions', field: 'guid', align: 'right'}
+                ]
             }
         },
         created() {
@@ -462,6 +483,11 @@
             evaluate_expression(expression) {
                 let expr = exprEval.Parser.parse(expression);
                 return expr.evaluate();
+            },
+            formatDate(dateStr) {
+                if (!dateStr) return '';
+                const date = new Date(dateStr);
+                return date.toLocaleString();
             },
             handlePaste(event) {
                 let that = this;

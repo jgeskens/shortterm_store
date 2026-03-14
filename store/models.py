@@ -15,6 +15,7 @@ class ItemManager(models.Manager):
     def cleanup_empty(self):
         self.filter(name='', text='', uploads__isnull=True).delete()
 
+
 class Item(models.Model):
     guid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     shortcut = models.CharField(max_length=16, default=utils.shortuuid, editable=False)

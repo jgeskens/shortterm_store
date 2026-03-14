@@ -81,9 +81,10 @@ def item_detail(request, item_shortcut=''):
                         'guid': str(u.guid),
                         'filename': u.key.rsplit('/', 1)[-1],
                         'url': reverse('upload_download', args=(str(item.guid), str(u.guid))),
-                        'is_image': u.key.rsplit('.', 1)[-1].lower() in ('jpg', 'jpeg', 'png', 'gif')
+                        'is_image': u.key.rsplit('.', 1)[-1].lower() in ('jpg', 'jpeg', 'png', 'gif'),
+                        'modified': u.modified.isoformat()
                     }
-                    for u in (item.uploads.all() if in_db else ())
+                    for u in (item.uploads.all().order_by('-modified') if in_db else ())
                 ]
             })
 
@@ -109,6 +110,9 @@ def upload(request, item_guid):
     data = json.loads(request.body.decode('utf-8'))
     assert 'url' in data and 'key' in data
     u, created = models.Upload.objects.get_or_create(item=item, **data)
+    if not created:
+        u.modified = now()
+        u.save()
     return JsonResponse({
         'url': reverse('upload_download', args=(str(item.guid), str(u.guid)))
     })
