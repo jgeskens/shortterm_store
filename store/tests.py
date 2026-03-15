@@ -96,3 +96,40 @@ class PasswordProtectionTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.item.refresh_from_db()
         self.assertEqual(self.item.text, 'new text')
+
+    def test_upload_endpoints_password(self):
+        # Set password
+        self.item.password = make_password('testpassword')
+        self.item.save()
+
+        # generate_upload_params without password should fail
+        response = self.client.post(
+            f'/{self.item_guid}/generate-upload-params/',
+            data={'filename': 'test.png'}
+        )
+        self.assertEqual(response.status_code, 403)
+
+        # generate_upload_params with password should succeed
+        response = self.client.post(
+            f'/{self.item_guid}/generate-upload-params/',
+            data={'filename': 'test.png'},
+            **{'HTTP_X_ITEM_PASSWORD': 'testpassword'}
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # upload without password should fail
+        response = self.client.post(
+            f'/{self.item_guid}/upload/',
+            data=json.dumps({'key': f'{self.item_guid}/test.png', 'url': 'http://example.com/test.png'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 403)
+
+        # upload with password should succeed
+        response = self.client.post(
+            f'/{self.item_guid}/upload/',
+            data=json.dumps({'key': f'{self.item_guid}/test.png', 'url': 'http://example.com/test.png'}),
+            content_type='application/json',
+            **{'HTTP_X_ITEM_PASSWORD': 'testpassword'}
+        )
+        self.assertEqual(response.status_code, 200)

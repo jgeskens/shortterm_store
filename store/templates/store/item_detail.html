@@ -57,6 +57,9 @@
         .body--dark .markdown-container a {
             color: #2eb9ff;
         }
+        .q-card__actions .q-btn {
+            border-radius: 4px;
+        }
     </style>
 </head>
 
@@ -269,9 +272,9 @@
                     <q-card-section class="q-pt-none">
                         <q-input dense v-model="newPassword" autofocus @keyup.enter="setPassword" type="password" label="New password"/>
                     </q-card-section>
-                    <q-card-actions align="right" class="text-primary">
-                        <q-btn flat label="Cancel" v-close-popup />
-                        <q-btn flat label="Set" @click="setPassword" v-close-popup />
+                    <q-card-actions align="right">
+                        <q-btn flat label="Cancel" v-close-popup></q-btn>
+                        <q-btn flat label="Set" @click="setPassword" v-close-popup></q-btn>
                     </q-card-actions>
                 </q-card>
             </q-dialog>
@@ -284,8 +287,8 @@
                     <q-card-section class="q-pt-none">
                         <q-input dense v-model="inputPassword" autofocus @keyup.enter="verifyPassword" type="password" label="Enter password"/>
                     </q-card-section>
-                    <q-card-actions align="right" class="text-primary">
-                        <q-btn flat label="Unlock" @click="verifyPassword" />
+                    <q-card-actions align="right">
+                        <q-btn flat label="Unlock" @click="verifyPassword"></q-btn>
                     </q-card-actions>
                 </q-card>
             </q-dialog>
@@ -691,11 +694,16 @@
                     let filename = 'image_' + Date.now() + '.png';
                     let formData = new FormData();
                     formData.append('filename', filename);
+                    let headers = {
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    };
+                    const storedPassword = localStorage.getItem('password-{{ item.guid }}');
+                    if (storedPassword) {
+                        headers['X-Item-Password'] = storedPassword;
+                    }
                     fetch('{{ request.path }}generate-upload-params/', {
                         method: 'POST',
-                        headers: {
-                            'X-CSRFToken': '{{ csrf_token }}'
-                        },
+                        headers: headers,
                         body: formData
                     }).then(function (result) {
                         result.json().then(function (resultData) {
@@ -709,19 +717,27 @@
                                 method: 'POST',
                                 body: formData
                             }).then(function(result){
+                                let uploadHeaders = {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': '{{ csrf_token }}'
+                                };
+                                if (storedPassword) {
+                                    uploadHeaders['X-Item-Password'] = storedPassword;
+                                }
                                 fetch('{{ request.path }}upload/', {
                                     method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'X-CSRFToken': '{{ csrf_token }}'
-                                    },
+                                    headers: uploadHeaders,
                                     body: JSON.stringify({
                                         'key': '{{ item.guid }}/' + filename,
                                         'url': result.url + '/{{ item.guid }}/' + filename
                                     })
                                 }).then(function (result) {
                                     result.json().then(function(data){
-                                        input.setRangeText('![](' + data.url + ')', input.selectionStart, input.selectionEnd, 'start');
+                                        let finalUrl = data.url;
+                                        if (storedPassword) {
+                                            finalUrl += '?password=' + encodeURIComponent(storedPassword);
+                                        }
+                                        input.setRangeText('![](' + finalUrl + ')', input.selectionStart, input.selectionEnd, 'start');
                                         input.selectionStart += 2;
                                         input.setRangeText('insert image description here', input.selectionStart, input.selectionEnd, 'select');
                                         that.text = input.value;
