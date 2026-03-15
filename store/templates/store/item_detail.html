@@ -215,6 +215,7 @@
                                                 @click="fullscreen=true; slide=props.row.url"
                                                 class="cursor-pointer"
                                         ></q-img>
+                                        <audio v-else-if="props.row.is_audio" :src="props.row.url" controls style="height: 30px; width: 200px; vertical-align: middle;" @ended="playNextAudio($event)"></audio>
                                         <q-icon v-else name="file_present" size="sm"></q-icon>
                                     </q-td>
                                 </template>
@@ -655,6 +656,21 @@
             evaluate_expression(expression) {
                 let expr = exprEval.Parser.parse(expression);
                 return expr.evaluate();
+            },
+            playNextAudio(event) {
+                const currentAudio = event.target;
+                const currentRow = currentAudio.closest('tr');
+                if (!currentRow) return;
+
+                let nextRow = currentRow.nextElementSibling;
+                while (nextRow) {
+                    const nextAudio = nextRow.querySelector('audio');
+                    if (nextAudio) {
+                        nextAudio.play();
+                        return;
+                    }
+                    nextRow = nextRow.nextElementSibling;
+                }
             },
             formatDate(dateStr) {
                 if (!dateStr) return '';

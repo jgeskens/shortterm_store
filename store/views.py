@@ -123,6 +123,7 @@ def item_detail(request, item_shortcut=''):
                         'filename': u.key.rsplit('/', 1)[-1],
                         'url': reverse('upload_download', args=(str(item.guid), str(u.guid))),
                         'is_image': u.key.rsplit('.', 1)[-1].lower() in ('jpg', 'jpeg', 'png', 'gif'),
+                        'is_audio': u.key.rsplit('.', 1)[-1].lower() == 'mp3',
                         'modified': u.modified.isoformat()
                     }
                     for u in (item.uploads.all().order_by('-modified') if in_db else ())
