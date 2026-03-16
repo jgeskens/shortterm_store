@@ -126,6 +126,7 @@ def item_detail(request, item_shortcut=''):
                 'shortcut': item.shortcut,
                 'text': item.text,
                 'has_password': bool(item.password),
+                't': get_item_password_token(item),
                 'password_token': get_item_password_token(item),
                 'short_link_expires': timeuntil(item.shortcut_expires()) if item.shortcut_expires() > now() else None,
                 'uploads': [

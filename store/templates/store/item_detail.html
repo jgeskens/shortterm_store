@@ -85,6 +85,18 @@
         .body--dark .q-table th {
             color: rgba(255, 255, 255, 0.7);
         }
+        .uploader-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
     </style>
 </head>
 
@@ -189,20 +201,49 @@
                 </template>
             </q-carousel>
 
-            <div class="q-pa-md" v-if="uploadVisible">
-                <q-uploader
-                        ref="uploader"
-                        :url="getUploadUrl"
-                        :form-fields="getUploadFormFields"
-                        field-name="file"
-                        @added="fetchUploadParams"
-                        @uploaded="handleUploaded"
-                        @finish="uploadVisible=false;"
-                        label="Upload"
-                        multiple
-                        style="max-width: 300px"
-                ></q-uploader>
+            <div v-show="uploadVisible" class="uploader-overlay" @click.self="uploadVisible=false">
+                <q-card style="min-width: 350px">
+                    <q-card-section class="row items-center q-pb-none">
+                        <div class="text-h6">Upload Files</div>
+                        <q-space></q-space>
+                        <q-btn icon="close" flat round dense @click="uploadVisible=false"></q-btn>
+                    </q-card-section>
+                    <q-card-section class="q-pt-none">
+                        <q-uploader
+                                ref="uploader"
+                                :url="getUploadUrl"
+                                :form-fields="getUploadFormFields"
+                                field-name="file"
+                                @added="fetchUploadParams"
+                                @uploaded="handleUploaded"
+                                @finish="handleUploadFinish"
+                                @start="handleUploadStart"
+                                @uploading="handleUploading"
+                                label="Upload"
+                                multiple
+                                style="max-width: 300px"
+                        ></q-uploader>
+                    </q-card-section>
+                </q-card>
             </div>
+
+            <q-page-sticky position="bottom-right" :offset="[18, 18]" v-if="isUploading && !uploadVisible" style="z-index: 1500">
+                <q-btn fab color="primary" @click="uploadVisible = true">
+                    <q-circular-progress
+                            show-value
+                            font-size="10px"
+                            :value="uploadProgress"
+                            size="56px"
+                            :thickness="0.1"
+                            color="white"
+                            center-color="primary"
+                            class="absolute-full"
+                    >
+                        {% verbatim %}{{ Math.round(uploadProgress) }}%{% endverbatim %}
+                    </q-circular-progress>
+                    <q-tooltip>Uploading... Click to open</q-tooltip>
+                </q-btn>
+            </q-page-sticky>
 
             <div class="fit row wrap justify-start items-start content-start" v-if="!locked">
                 <div class="col-md col-xs-12" v-if="mode=='simple' || mode=='editor'">
@@ -347,6 +388,9 @@
                 text: '',
                 uploads: [],
                 uploadVisible: false,
+                isUploading: false,
+                uploadProgress: 0,
+                progressInterval: null,
                 updateInterval: null,
                 changeTimeout: null,
                 uploadParamsCache: {},
@@ -413,11 +457,12 @@
             slide(val) {
                 this.zoomed = false;
             },
-            fullscreen(val) {
-                this.zoomed = false;
+            uploadVisible(val) {
                 if (val) {
                     this.scrollPosition = window.scrollY;
+                    document.body.style.overflow = 'hidden';
                 } else {
+                    document.body.style.overflow = '';
                     this.$nextTick(() => {
                         window.scrollTo(0, this.scrollPosition);
                     });
@@ -612,7 +657,49 @@
                 console.log('getUploadFormFields', formFields);
                 return formFields;
             },
+            handleUploading(info) {
+                if (this.$refs.uploader) {
+                    // Update progress based on files
+                    const files = this.$refs.uploader.files;
+                    if (files && files.length > 0) {
+                        let totalLoaded = 0;
+                        let totalSize = 0;
+                        files.forEach(f => {
+                            if (f.__status === 'uploading' || f.__status === 'uploaded') {
+                                totalLoaded += (f.__uploaded || 0);
+                            }
+                            totalSize += f.size;
+                        });
+                        if (totalSize > 0) {
+                            this.uploadProgress = (totalLoaded / totalSize) * 100;
+                        }
+                    }
+                }
+            },
+            handleUploadStart() {
+                this.isUploading = true;
+                this.uploadProgress = 0;
+                if (this.progressInterval) {
+                    clearInterval(this.progressInterval);
+                }
+                this.progressInterval = setInterval(() => {
+                    this.handleUploading();
+                }, 100);
+            },
+            handleUploadFinish() {
+                if (this.progressInterval) {
+                    clearInterval(this.progressInterval);
+                    this.progressInterval = null;
+                }
+                this.uploadVisible = false;
+                this.isUploading = false;
+                this.uploadProgress = 0;
+                this.$refs.uploader.reset();
+            },
             handleUploaded(info) {
+                if (this.$refs.uploader) {
+                    this.handleUploading();
+                }
                 // console.log('handleUploaded', info);
                 const headers = {
                     'Content-Type': 'application/json',
@@ -623,7 +710,6 @@
                     headers['X-Item-Password'] = storedPassword;
                 }
                 for (const file of info.files) {
-                    this.$refs.uploader.removeFile(file);
                     fetch('{{ request.path }}upload/', {
                         method: 'POST',
                         headers: headers,
