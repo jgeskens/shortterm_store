@@ -3,7 +3,13 @@ from datetime import timedelta
 
 import boto3
 import uuid
-from hashlib import sha1
+from hashlib import sha1, sha256
+
+
+def get_item_password_token(item):
+    if not item.password:
+        return ''
+    return sha256((item.password + settings.SECRET_KEY).encode('utf-8')).hexdigest()
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
@@ -34,6 +40,10 @@ def check_item_password(item, request):
         password = request.GET.get('password')
     
     if password and check_password(password, item.password):
+        return True
+    
+    password_token = request.GET.get('t')
+    if password_token and password_token == get_item_password_token(item):
         return True
     
     return False
@@ -116,6 +126,7 @@ def item_detail(request, item_shortcut=''):
                 'shortcut': item.shortcut,
                 'text': item.text,
                 'has_password': bool(item.password),
+                'password_token': get_item_password_token(item),
                 'short_link_expires': timeuntil(item.shortcut_expires()) if item.shortcut_expires() > now() else None,
                 'uploads': [
                     {

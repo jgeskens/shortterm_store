@@ -358,6 +358,7 @@
                 newPassword: '',
                 inputPassword: '',
                 short_link_expires: null,
+                password_token: '',
                 preventUpdates: false,
                 mode_options: [
                     {label: 'Simple', value: 'simple'},
@@ -472,8 +473,8 @@
                         that.mode = jsonResponse.mode;
                         that.newName = jsonResponse.name;
                         that.uploads = jsonResponse.uploads.map(function(upload) {
-                            if (storedPassword) {
-                                upload.url += (upload.url.indexOf('?') === -1 ? '?' : '&') + 'password=' + encodeURIComponent(storedPassword);
+                            if (jsonResponse.password_token) {
+                                upload.url += (upload.url.indexOf('?') === -1 ? '?' : '&') + 't=' + encodeURIComponent(jsonResponse.password_token);
                             }
                             return upload;
                         });
@@ -483,6 +484,7 @@
                             that.slide = (images.length > 0 ? images[0].url : null);
                         that.in_db = jsonResponse.in_db;
                         that.short_link_expires = jsonResponse.short_link_expires;
+                        that.password_token = jsonResponse.password_token;
                         window.document.title = jsonResponse.display_name;
                     });
                 });
@@ -756,8 +758,8 @@
                                 }).then(function (result) {
                                     result.json().then(function(data){
                                         let finalUrl = data.url;
-                                        if (storedPassword) {
-                                            finalUrl += '?password=' + encodeURIComponent(storedPassword);
+                                        if (that.password_token) {
+                                            finalUrl += '?t=' + encodeURIComponent(that.password_token);
                                         }
                                         input.setRangeText('![](' + finalUrl + ')', input.selectionStart, input.selectionEnd, 'start');
                                         input.selectionStart += 2;

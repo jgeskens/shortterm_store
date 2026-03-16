@@ -133,3 +133,33 @@ class PasswordProtectionTest(TestCase):
             **{'HTTP_X_ITEM_PASSWORD': 'testpassword'}
         )
         self.assertEqual(response.status_code, 200)
+
+    def test_password_token(self):
+        # Set password
+        password = 'testpassword'
+        self.item.password = make_password(password)
+        self.item.save()
+
+        # Get detail with correct password to get token
+        response = self.client.get(f'/{self.item_guid}/?json', **{'HTTP_X_ITEM_PASSWORD': password})
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        password_token = data.get('t')
+        self.assertTrue(password_token)
+
+        # Access with token should succeed
+        response = self.client.get(f'/{self.item_guid}/?json&t={password_token}')
+        self.assertEqual(response.status_code, 200)
+
+        # Access with wrong token should fail
+        response = self.client.get(f'/{self.item_guid}/?json&t=wrongtoken')
+        self.assertEqual(response.status_code, 403)
+
+        # Create an upload
+        from .models import Upload
+        upload = Upload.objects.create(item=self.item, key=f'{self.item_guid}/test.txt', url='http://example.com/test.txt')
+
+        # Download with token should succeed
+        download_url = reverse('upload_download', args=(self.item_guid, str(upload.guid)))
+        response = self.client.get(f'{download_url}?t={password_token}')
+        self.assertEqual(response.status_code, 302)
