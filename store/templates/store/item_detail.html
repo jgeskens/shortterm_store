@@ -60,6 +60,31 @@
         .q-card__actions .q-btn {
             border-radius: 4px;
         }
+        .markdown-container table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+        .markdown-container th, .markdown-container td {
+            border: 1px solid rgba(0, 0, 0, 0.12);
+            padding: 8px;
+            text-align: left;
+        }
+        .body--dark .markdown-container th, .body--dark .markdown-container td {
+            border: 1px solid rgba(255, 255, 255, 0.28);
+        }
+        .markdown-container th {
+            background-color: rgba(0, 0, 0, 0.03);
+        }
+        .body--dark .markdown-container th {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        .q-table th {
+            font-weight: bold !important;
+        }
+        .body--dark .q-table th {
+            color: rgba(255, 255, 255, 0.7);
+        }
     </style>
 </head>
 
@@ -180,10 +205,8 @@
             </div>
 
             <div class="fit row wrap justify-start items-start content-start" v-if="!locked">
-                <div class="col-md col-xs-12" v-if="mode=='simple' || mode=='editor'">
-
-
-                    <div class="q-pa-md">
+                <div class="col-md col-xs-12">
+                    <div class="q-pa-md" v-if="mode=='simple' || mode=='editor'">
                         <q-input
                                 v-model="text"
                                 autogrow
@@ -353,8 +376,8 @@
                 fullscreen: false,
                 zoomed: false,
                 columns: [
-                    {name: 'preview', label: 'Preview', field: 'url', align: 'left'},
-                    {name: 'filename', label: 'Filename', field: 'filename', align: 'left', sortable: true},
+                    {name: 'preview', label: 'Preview', field: 'url', align: 'left', style: 'width: 60px'},
+                    {name: 'filename', label: 'Filename', field: 'filename', align: 'left', sortable: true, style: 'max-width: 300px; word-break: break-all;'},
                     {name: 'modified', label: 'Modified', field: 'modified', align: 'left', sortable: true},
                     {name: 'actions', label: 'Actions', field: 'guid', align: 'right'}
                 ]
