@@ -375,6 +375,7 @@
                 slide: null,
                 fullscreen: false,
                 zoomed: false,
+                scrollPosition: 0,
                 columns: [
                     {name: 'preview', label: 'Preview', field: 'url', align: 'left', style: 'width: 60px'},
                     {name: 'filename', label: 'Filename', field: 'filename', align: 'left', sortable: true, style: 'max-width: 300px; word-break: break-all;'},
@@ -414,6 +415,13 @@
             },
             fullscreen(val) {
                 this.zoomed = false;
+                if (val) {
+                    this.scrollPosition = window.scrollY;
+                } else {
+                    this.$nextTick(() => {
+                        window.scrollTo(0, this.scrollPosition);
+                    });
+                }
             },
             newName(val) {
                 if (!this.dataLoaded)
