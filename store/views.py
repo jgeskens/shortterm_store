@@ -13,6 +13,7 @@ from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
 from django.utils.timesince import timeuntil
+from django.utils.http import content_disposition_header
 from django.utils.timezone import now
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
@@ -25,7 +26,8 @@ from . import storage
 from . import utils
 
 UPLOAD_TOKEN_SALT = 'store.upload'
-UPLOAD_TOKEN_MAX_AGE = 3600
+# Checked when the upload has fully arrived, so it must cover multi-GB uploads on slow lines.
+UPLOAD_TOKEN_MAX_AGE = 24 * 3600
 
 
 def check_item_password(item, request):
@@ -201,7 +203,7 @@ def upload(request, item_guid):
         key = storage.key_for(item.guid, data['key'].rsplit('/', 1)[-1])
     except storage.InvalidKey:
         return JsonResponse({'error': 'invalid filename'}, status=400)
-    u, created = models.Upload.objects.get_or_create(item=item, key=key, defaults={'url': data['url']})
+    u, created = models.Upload.objects.get_or_create(item=item, key=key, defaults={'url': data['url'][:255]})
     if not created:
         u.modified = now()
         u.save()
@@ -243,6 +245,9 @@ def upload_download(request, item_guid, upload_guid):
     if not path.is_file():
         raise Http404
     # nginx serves the file from its internal /_protected/ location.
-    response = HttpResponse(content_type=storage.content_type(upload.key))
+    ctype = storage.content_type(upload.key)
+    inline = storage.is_inline_safe(ctype)
+    response = HttpResponse(content_type=ctype if inline else 'application/octet-stream')
+    response['Content-Disposition'] = content_disposition_header(not inline, path.name)
     response['X-Accel-Redirect'] = storage.accel_redirect(upload.key)
     return response

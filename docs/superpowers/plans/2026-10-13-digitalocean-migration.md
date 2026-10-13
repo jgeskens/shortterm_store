@@ -18,7 +18,7 @@
 - Database image `postgres:16`. Database, user: `shorttermstore`.
 - Storage key format is unchanged: `<item_guid>/<filename>`; stored at `STORAGE_ROOT/<key>`.
 - nginx: `client_max_body_size 5G`; `client_body_temp_path /mnt/volume-ams3-01/shortterm_store/nginx_body`; internal location `/_protected/` aliased to the storage dir.
-- Upload token: `django.core.signing`, salt `store.upload`, max age 3600 s.
+- Upload token: `django.core.signing`, salt `store.upload`, max age 24 h (checked after nginx has buffered the whole upload).
 - Keep the current production `SECRET_KEY` (from `zappa_settings.json`, stage `dev`): it derives the `?t=` tokens embedded in image links.
 - Files and dirs written to storage: mode `0644` / `0755`, owned by UID/GID 33 (`www-data` on host and in the container).
 - No email, no backups, no CI, no frontend changes.
@@ -1538,6 +1538,8 @@ curl -s -o /dev/null -w '%{http_code}\n' https://new.shortterm.store/static/admi
 
 Expected: `302 https://new.shortterm.store/<uuid>/` and `200`.
 
+After the smoke test below, `curl -sI` a downloaded `.png` and an uploaded `.html` file's download URL: the png shows `Content-Type: image/png`, the html shows `application/octet-stream` + `Content-Disposition: attachment`, and both carry `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox`.
+
 - [ ] **Step 6: Smoke test with an empty database**
 
 In a browser on `https://new.shortterm.store/`: create a store, upload a small file via the uploader, upload a >10 MB file, paste an image into the text, download both, delete one, set a password and open the store again in a private window.
@@ -1569,17 +1571,22 @@ print(urllib.parse.urlparse(url).password)" \
 | ssh root@node3.geskens.be 'set -e
 read -r PGPASSWORD; export PGPASSWORD
 cd /mnt/volume-ams3-01/shortterm_store
+umask 077
 docker run --rm -e PGPASSWORD postgres:16 pg_dump \
   -h oemfoe-aws-2.cowc6c0hrwed.eu-central-1.rds.amazonaws.com -U postgres -d shorttermstore \
   --no-owner --no-acl -Fc > shorttermstore.dump
 cd app
 docker compose stop app cron
+set +e
 docker compose exec -T db pg_restore --clean --if-exists --no-owner --role=shorttermstore \
   -U shorttermstore -d shorttermstore < ../shorttermstore.dump
-docker compose start app cron'
+rc=$?
+docker compose start app cron
+rm -f ../shorttermstore.dump
+exit $rc'
 ```
 
-Expected: no errors from `pg_restore` other than possible notices about objects that did not exist.
+Expected: the app is running again whatever happens. `pg_restore` may exit 1 with only notices about objects that did not exist; any other error means restore again before continuing. The dump (all user data) is created mode 0600 and deleted right after the restore.
 
 - [ ] **Step 3: Compare row counts**
 
@@ -1606,11 +1613,12 @@ On `https://new.shortterm.store/<existing guid>/` for a few real stores (pick gu
 ### Task 10: Cutover (ops, Jef picks the moment)
 
 - [ ] **Step 1:** A day before, lower the TTL of the `shortterm.store` record in Route 53 to 60 s.
-- [ ] **Step 2:** Rerun Task 9 steps 1–4 (delta copy of files, fresh database dump/restore, counts, `verify_storage`). From this moment on, the old site should not take new data; accept a few minutes of overlap or put it in maintenance.
-- [ ] **Step 3:** Point `shortterm.store` to `188.166.33.64` in Route 53.
-- [ ] **Step 4:** Add `shortterm.store` to the server `.env` (`ALLOWED_HOSTS=shortterm.store,new.shortterm.store`, `CSRF_TRUSTED_ORIGINS=https://shortterm.store,https://new.shortterm.store`) and run `ssh root@node3.geskens.be 'cd /mnt/volume-ams3-01/shortterm_store/app && docker compose up -d'`.
-- [ ] **Step 5:** When `dig +short shortterm.store` returns `188.166.33.64`: `certbot certonly --webroot -w /var/www/certbot -d shortterm.store -d new.shortterm.store --cert-name shortterm.store`. Then, in `/etc/nginx/sites-enabled/shortterm.store` (and in `deploy/nginx.conf` in the repo), set both `server_name` lines to `shortterm.store new.shortterm.store` and the certificate paths to `/etc/letsencrypt/live/shortterm.store/`. Run `nginx -t && systemctl reload nginx`.
-- [ ] **Step 6:** Check `https://shortterm.store/` and an existing store with uploads. Commit the updated `deploy/nginx.conf`.
+- [ ] **Step 2: Prepare node3 for the name, before DNS moves.** Add `shortterm.store` to the server `.env` (`ALLOWED_HOSTS=shortterm.store,new.shortterm.store`, `CSRF_TRUSTED_ORIGINS=https://shortterm.store,https://new.shortterm.store`) and run `docker compose up -d` in the app dir. In `/etc/nginx/sites-enabled/shortterm.store` add `shortterm.store` to **both** `server_name` lines (the 443 block keeps the `new.shortterm.store` certificate for now, so the brief gap shows a name mismatch for this site instead of another project's site, and the ACME challenge for `shortterm.store` hits our port-80 block). `nginx -t && systemctl reload nginx`.
+- [ ] **Step 3: Stop writes on the old site.** `aws --profile geskens --region eu-central-1 lambda put-function-concurrency --function-name shorttermstore-dev --reserved-concurrent-executions 0` (and the same for `shorttermstore-test`). The old site now errors instead of accepting uploads. Undo with `aws ... lambda delete-function-concurrency --function-name shorttermstore-dev`.
+- [ ] **Step 4: Final sync.** Rerun Task 9 steps 1–4 (delta copy of files, fresh dump/restore, counts, `verify_storage`).
+- [ ] **Step 5: Switch DNS.** Point `shortterm.store` to `188.166.33.64` in Route 53.
+- [ ] **Step 6: Certificate.** As soon as `dig +short shortterm.store @1.1.1.1` returns `188.166.33.64`: `certbot certonly --webroot -w /var/www/certbot -d shortterm.store -d new.shortterm.store --cert-name shortterm.store`. Then set the certificate paths in the 443 block to `/etc/letsencrypt/live/shortterm.store/` and `nginx -t && systemctl reload nginx`. Expected TLS gap: roughly the TTL plus a minute.
+- [ ] **Step 7:** Check `https://shortterm.store/` and an existing store with uploads. Update `deploy/nginx.conf` in the repo to match the server (both names, new certificate paths) and commit it.
 
 ### Task 11: Decommission AWS (after about a week; each step needs Jef's explicit go)
 

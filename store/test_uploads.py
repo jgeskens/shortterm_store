@@ -178,3 +178,62 @@ class DownloadDeleteTest(TempStorageMixin, TestCase):
         response = self.client.post(f'/{self.guid}/upload/{upload.guid}/delete/')
         self.assertEqual(response.status_code, 200)
         self.assertFalse(Upload.objects.filter(pk=upload.pk).exists())
+
+
+class ReviewFixesTest(TempStorageMixin, TestCase):
+    def setUp(self):
+        super().setUp()
+        self.guid = str(uuid.uuid4())
+        self.item = Item.objects.create(guid=self.guid)
+
+    def make_upload(self, filename):
+        path = self.storage_root / self.guid / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'x')
+        return Upload.objects.create(item=self.item, key=f'{self.guid}/{filename}', url='x')
+
+    def download(self, filename):
+        upload = self.make_upload(filename)
+        return self.client.get(f'/{self.guid}/upload/{upload.guid}/download/')
+
+    def test_active_content_is_forced_to_download(self):
+        for filename in ('evil.html', 'evil.htm', 'evil.svg', 'evil.xml', 'evil.js', 'noext'):
+            with self.subTest(filename):
+                response = self.download(filename)
+                self.assertEqual(response['Content-Type'], 'application/octet-stream')
+                self.assertTrue(response['Content-Disposition'].startswith('attachment'))
+
+    def test_media_is_inline_with_filename(self):
+        for filename, ctype in (('a.png', 'image/png'), ('a.mp3', 'audio/mpeg'), ('a.txt', 'text/plain')):
+            with self.subTest(filename):
+                response = self.download(filename)
+                self.assertEqual(response['Content-Type'], ctype)
+                self.assertEqual(response['Content-Disposition'], f'inline; filename="{filename}"')
+
+    def test_unicode_filename_in_disposition(self):
+        response = self.download('liedje é.mp3')
+        self.assertIn("filename*=utf-8''liedje%20%C3%A9.mp3", response['Content-Disposition'])
+
+    def test_upload_token_survives_slow_uploads(self):
+        params = self.client.post(f'/{self.guid}/generate-upload-params/', {'filename': 'big.bin'}).json()
+        later = time.time() + 6 * 3600
+        data = dict(params['fields'], file=SimpleUploadedFile('big.bin', b'x'))
+        with mock.patch('django.core.signing.time.time', return_value=later):
+            response = self.client.post(params['url'], data)
+        self.assertEqual(response.status_code, 204)
+
+    def test_too_long_filename_rejected_before_upload(self):
+        for name in ('a' * 250 + '.png', 'é' * 130 + '.png'):
+            with self.subTest(len(name)):
+                response = self.client.post(f'/{self.guid}/generate-upload-params/', {'filename': name})
+                self.assertEqual(response.status_code, 400)
+
+    def test_register_long_url_is_truncated(self):
+        name = 'n' * 150 + '.png'
+        response = self.client.post(
+            f'/{self.guid}/upload/',
+            data=json.dumps({'key': f'{self.guid}/{name}', 'url': 'https://x/' + 'u' * 300}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(Upload.objects.get(item=self.item).url), 255)

@@ -1,9 +1,16 @@
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
 services:
   app:
     build: .
+    logging: *logging
     restart: unless-stopped
     environment:
-      SECRET_KEY: ${SECRET_KEY:-dev-insecure-key}
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
       DEBUG: ${DEBUG:-False}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
@@ -19,6 +26,7 @@ services:
 
   db:
     image: postgres:16
+    logging: *logging
     restart: unless-stopped
     environment:
       POSTGRES_DB: shorttermstore
@@ -34,10 +42,11 @@ services:
 
   cron:
     build: .
+    logging: *logging
     restart: unless-stopped
     command: ["sh", "-c", "while true; do python manage.py cleanup_empty_stores; sleep 86400; done"]
     environment:
-      SECRET_KEY: ${SECRET_KEY:-dev-insecure-key}
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
       DATABASE_URL: postgres://shorttermstore:${POSTGRES_PASSWORD:-shorttermstore}@db:5432/shorttermstore
       STORAGE_ROOT: /storage
     depends_on:

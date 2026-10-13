@@ -10,6 +10,13 @@ from django.conf import settings
 
 ACCEL_PREFIX = '/_protected/'
 FILE_MODE = 0o644
+MAX_KEY_LENGTH = 255  # Upload.key max_length
+MAX_FILENAME_BYTES = 255  # filesystem limit
+
+# Types that are safe to show inline on our own origin. Anything else (HTML, SVG, XML, JS, ...)
+# could run script, so it is served as an attachment.
+# PDFs are not inline: browsers refuse to render them under nginx's CSP sandbox.
+INLINE_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'text/plain'}
 
 
 class InvalidKey(ValueError):
@@ -24,7 +31,11 @@ def clean_filename(filename):
 
 
 def key_for(item_guid, filename):
-    return f'{item_guid}/{clean_filename(filename)}'
+    name = clean_filename(filename)
+    key = f'{item_guid}/{name}'
+    if len(key) > MAX_KEY_LENGTH or len(name.encode('utf-8')) > MAX_FILENAME_BYTES:
+        raise InvalidKey(f'Filename too long: {filename!r}')
+    return key
 
 
 def _root():
@@ -69,3 +80,7 @@ def accel_redirect(key):
 
 def content_type(key):
     return mimetypes.guess_type(key)[0] or 'application/octet-stream'
+
+
+def is_inline_safe(ctype):
+    return ctype in INLINE_TYPES or ctype.startswith(('audio/', 'video/'))
