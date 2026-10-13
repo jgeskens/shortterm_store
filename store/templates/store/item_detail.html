@@ -109,7 +109,7 @@
             <q-toolbar>
                 <q-toolbar-title>
                     <div class="cursor-pointer">
-                        <span v-html="name"></span>
+                        <span v-text="name"></span>
                         <q-popup-edit v-model="newName" auto-save v-slot="scope">
                             <q-input v-model="scope.value" dense autofocus auto-save @keyup.enter="scope.set"/>
                         </q-popup-edit>
@@ -300,7 +300,7 @@
 
                         <template v-slot:body-cell-filename="props">
                             <q-td :props="props">
-                                <a :href="props.row.url" v-html="props.row.filename"></a>
+                                <a :href="props.row.url" v-text="props.row.filename"></a>
                             </q-td>
                         </template>
 
