@@ -16,6 +16,7 @@ rsync -az --delete \
     --exclude /.ropeproject/ \
     --exclude /.python-version \
     --exclude /.superpowers/ \
+    --exclude /.claude/ \
     --exclude /storage/ \
     --exclude /staticfiles/ \
     --exclude __pycache__/ \
