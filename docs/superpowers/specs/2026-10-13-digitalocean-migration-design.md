@@ -135,19 +135,19 @@ Measured on 2026-10-13 (profile `geskens`): 825 objects, 19.74 GiB, all `STANDAR
 storage class, versioning never enabled. Largest objects: 3.42, 1.27, 0.98, 0.69, 0.57 GiB.
 This fits comfortably in the 450 GB volume; S3 egress is about $1.80.
 
-1. **Credentials:** a temporary IAM access key with read-only access to the bucket
-   (`s3:ListBucket`, `s3:GetObject`), passed to the container as environment variables.
-   It is never written to the repo or the app's `.env`, and is deleted after cutover.
-2. **Initial copy**, run on the droplet:
-   `docker run --rm -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION=eu-central-1 -v /mnt/volume-ams3-01/shortterm_store/storage:/storage amazon/aws-cli s3 sync s3://geskens-shorttermstore-data /storage`.
-   Keys map 1:1 to paths (`<item_guid>/<filename>`).
+1. **No AWS credentials on the server.** `deploy/s3_manifest.py` runs on Jef's laptop
+   (profile `geskens`), lists the bucket and prints one JSON line per object with its key,
+   size, LastModified and a presigned GET URL valid for 6 hours.
+2. **Copy:** the manifest is piped over SSH into `deploy/fetch_s3_manifest.py` (stdlib only)
+   on the server, which downloads every object to `<storage>/<key>`. Files that already exist
+   with the same size and an mtime at or after LastModified are skipped. Keys map 1:1 to paths.
 3. **Permissions:** chown the tree to the app container's UID and make it readable by
    `www-data` (same rules as files written by `upload_receive`).
 4. **Verification:** a management command `verify_storage` that reports
    - total file count and bytes under `STORAGE_ROOT` (compared by hand with the S3 numbers above / a fresh `aws s3 ls --summarize`),
    - `Upload` rows whose file is missing on disk,
    - files on disk with no `Upload` row (reported only, not deleted).
-5. **Delta at cutover:** rerun the same `s3 sync`; it only transfers new or changed
+5. **Delta at cutover:** rerun the manifest pipe; it only transfers new or changed
    objects, keeping the downtime window short. Rerun permissions and `verify_storage`.
 
 ## Migration and cutover
@@ -156,7 +156,8 @@ This fits comfortably in the 450 GB volume; S3 egress is about $1.80.
    install the nginx vhost for `new.shortterm.store`, run certbot.
 2. Initial data copy:
    - Files: steps 1–4 of *File migration*.
-   - `pg_dump` from RDS, restore into the compose `db`.
+   - `pg_dump` from RDS (Postgres 15.18, publicly reachable from node3) with the
+     `postgres:16` client image, restore into the compose `db`.
 3. Verify on `new.shortterm.store`: open existing stores (including password-protected ones
    with embedded images), upload via uploader and via paste, download, delete, carousel, mp3 playback.
 4. Cutover: final `pg_dump`/restore and step 5 of *File migration* for the delta, add `shortterm.store`
