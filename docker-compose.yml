@@ -44,7 +44,8 @@ services:
     build: .
     logging: *logging
     restart: unless-stopped
-    command: ["sh", "-c", "while true; do python manage.py cleanup_empty_stores; sleep 86400; done"]
+    # First run after 5 minutes, so the app has applied migrations on a fresh database.
+    command: ["sh", "-c", "sleep 300; while true; do python manage.py cleanup_empty_stores; sleep 86400; done"]
     environment:
       SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
       DATABASE_URL: postgres://shorttermstore:${POSTGRES_PASSWORD:-shorttermstore}@db:5432/shorttermstore
