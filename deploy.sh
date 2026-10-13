@@ -3,7 +3,7 @@
 set -euo pipefail
 
 DEPLOY_HOST="${DEPLOY_HOST:-root@node3.geskens.be}"
-DEPLOY_DIR="${DEPLOY_DIR:-/mnt/volume-ams3-01/shortterm_store/app}"
+DEPLOY_DIR="${DEPLOY_DIR:-/root/shortterm_store}"
 
 cd "$(dirname "$0")"
 
@@ -17,7 +17,6 @@ rsync -az --delete \
     --exclude /.python-version \
     --exclude /.superpowers/ \
     --exclude /storage/ \
-    --exclude /.data/ \
     --exclude /staticfiles/ \
     --exclude __pycache__/ \
     --exclude '*.pyc' \

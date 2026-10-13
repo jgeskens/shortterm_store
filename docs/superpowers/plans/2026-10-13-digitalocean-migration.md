@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Host: `root@node3.geskens.be`, SSH public-key auth. Base dir on the host: `/mnt/volume-ams3-01/shortterm_store` (subdirs `app`, `storage`, `postgres`, `nginx_body`).
+- Host: `root@node3.geskens.be`, SSH public-key auth. Follow the host's conventions: code and `.env` in `/root/shortterm_store` (like `/root/flushtime`, `/root/queuebuddy`, ...), Postgres in the named volume `shortterm_store_pgdata`. Only bulk data goes on the volume: `/mnt/volume-ams3-01/shortterm_store/storage` and `/mnt/volume-ams3-01/shortterm_store/nginx_body`.
 - App published on `127.0.0.1:8400` only (8000, 8080, 8090, 8100, 8200, 8300 are taken).
 - Gunicorn: 2 sync workers, `--timeout 300`. No extra long-running Python processes (957 MiB RAM box).
 - Database image `postgres:16`. Database, user: `shorttermstore`.
@@ -41,7 +41,7 @@
 |---|---|
 | `Dockerfile` | App image: deps, collectstatic, runs as `www-data` |
 | `.dockerignore` | Keeps secrets, VCS and data out of the build context |
-| `docker-compose.yml` | `app`, `db`, `cron` services; host paths come from `.env` interpolation |
+| `docker-compose.yml` | `app`, `db`, `cron` services; storage path comes from `.env` interpolation, Postgres in named volume `pgdata` |
 | `docker/start.sh` | Container start: ensure temp dir, migrate, exec gunicorn |
 | `shortterm_store/settings.py` | Env-driven settings incl. `STORAGE_ROOT`, whitenoise, proxy SSL header |
 | `store/storage.py` | Everything about files on disk: key building, safe paths, save, delete, accel header |
@@ -97,7 +97,6 @@ venv
 **/__pycache__
 **/*.pyc
 storage
-.data
 staticfiles
 docs
 ```
@@ -106,7 +105,6 @@ docs
 
 ```
 /storage
-/.data
 /staticfiles
 ```
 
@@ -179,12 +177,15 @@ services:
       POSTGRES_USER: shorttermstore
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shorttermstore}
     volumes:
-      - ${POSTGRES_DIR:-./.data/postgres}:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U shorttermstore -d shorttermstore"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+volumes:
+  pgdata:
 ```
 
 - [ ] **Step 7: Update `shortterm_store/settings.py`**
@@ -1349,7 +1350,7 @@ git commit -m "Add scripts to copy the S3 bucket to the server via presigned URL
 - Modify: `dot_env_example.env`
 
 **Interfaces:**
-- Produces: `./deploy.sh` (env `DEPLOY_HOST`, default `root@node3.geskens.be`; `DEPLOY_DIR`, default `/mnt/volume-ams3-01/shortterm_store/app`).
+- Produces: `./deploy.sh` (env `DEPLOY_HOST`, default `root@node3.geskens.be`; `DEPLOY_DIR`, default `/root/shortterm_store`).
 
 - [ ] **Step 1: Create `deploy.sh`** and `chmod +x deploy.sh`
 
@@ -1359,7 +1360,7 @@ git commit -m "Add scripts to copy the S3 bucket to the server via presigned URL
 set -euo pipefail
 
 DEPLOY_HOST="${DEPLOY_HOST:-root@node3.geskens.be}"
-DEPLOY_DIR="${DEPLOY_DIR:-/mnt/volume-ams3-01/shortterm_store/app}"
+DEPLOY_DIR="${DEPLOY_DIR:-/root/shortterm_store}"
 
 cd "$(dirname "$0")"
 
@@ -1372,7 +1373,6 @@ rsync -az --delete \
     --exclude /.ropeproject/ \
     --exclude /.python-version \
     --exclude /storage/ \
-    --exclude /.data/ \
     --exclude /staticfiles/ \
     --exclude __pycache__/ \
     --exclude '*.pyc' \
@@ -1442,14 +1442,13 @@ server {
 - [ ] **Step 3: Replace `dot_env_example.env`**
 
 ```
-# Server: /mnt/volume-ams3-01/shortterm_store/app/.env (read by docker compose)
+# Server: /root/shortterm_store/.env (read by docker compose)
 SECRET_KEY=keep-the-current-production-key
 DEBUG=False
 ALLOWED_HOSTS=new.shortterm.store
 CSRF_TRUSTED_ORIGINS=https://new.shortterm.store
 POSTGRES_PASSWORD=generate-with-openssl-rand-hex-24
 STORAGE_DIR=/mnt/volume-ams3-01/shortterm_store/storage
-POSTGRES_DIR=/mnt/volume-ams3-01/shortterm_store/postgres
 ```
 
 - [ ] **Step 4: Commit**
@@ -1469,8 +1468,9 @@ git commit -m "Add deploy script and nginx vhost for node3"
 
 ```bash
 ssh root@node3.geskens.be 'set -e
+mkdir -p /root/shortterm_store
 B=/mnt/volume-ams3-01/shortterm_store
-mkdir -p $B/app $B/storage/.tmp $B/postgres $B/nginx_body
+mkdir -p $B/storage/.tmp $B/nginx_body
 chown -R 33:33 $B/storage $B/nginx_body
 chmod 755 $B $B/storage'
 ```
@@ -1484,26 +1484,25 @@ python3 -c "import json; print(json.load(open('zappa_settings.json'))['dev']['en
 | ssh root@node3.geskens.be 'set -e
 read -r SECRET_KEY
 umask 077
-cat > /mnt/volume-ams3-01/shortterm_store/app/.env <<EOF
+cat > /root/shortterm_store/.env <<EOF
 SECRET_KEY=$SECRET_KEY
 DEBUG=False
 ALLOWED_HOSTS=new.shortterm.store
 CSRF_TRUSTED_ORIGINS=https://new.shortterm.store
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
 STORAGE_DIR=/mnt/volume-ams3-01/shortterm_store/storage
-POSTGRES_DIR=/mnt/volume-ams3-01/shortterm_store/postgres
 EOF
-sed "s/=.*/=…/" /mnt/volume-ams3-01/shortterm_store/app/.env'
+sed "s/=.*/=…/" /root/shortterm_store/.env'
 ```
 
-Expected: the seven variable names printed with masked values.
+Expected: the six variable names printed with masked values.
 
 Watch out: if the SECRET_KEY contains `$` or `` ` ``, the heredoc expands it. Check with `grep -c '[$`]'` on the local value first; if it does, write that line with `printf '%s\n' "SECRET_KEY=$SECRET_KEY"` instead.
 
 - [ ] **Step 3: First deploy**
 
 Run: `./deploy.sh`
-Then: `ssh root@node3.geskens.be 'cd /mnt/volume-ams3-01/shortterm_store/app && docker compose ps && curl -s -o /dev/null -w "%{http_code}\n" -H "Host: new.shortterm.store" http://127.0.0.1:8400/'`
+Then: `ssh root@node3.geskens.be 'cd /root/shortterm_store && docker compose ps && curl -s -o /dev/null -w "%{http_code}\n" -H "Host: new.shortterm.store" http://127.0.0.1:8400/'`
 Expected: `app`, `db`, `cron` running; `302`.
 
 - [ ] **Step 4: Certificate for new.shortterm.store**
@@ -1554,7 +1553,7 @@ Then on the server: `ls -ln /mnt/volume-ams3-01/shortterm_store/storage/*/` show
 From the repo root on the laptop:
 
 ```bash
-python deploy/s3_manifest.py | ssh root@node3.geskens.be 'python3 /mnt/volume-ams3-01/shortterm_store/app/deploy/fetch_s3_manifest.py /mnt/volume-ams3-01/shortterm_store/storage && chown -R 33:33 /mnt/volume-ams3-01/shortterm_store/storage'
+python deploy/s3_manifest.py | ssh root@node3.geskens.be 'python3 /root/shortterm_store/deploy/fetch_s3_manifest.py /mnt/volume-ams3-01/shortterm_store/storage && chown -R 33:33 /mnt/volume-ams3-01/shortterm_store/storage'
 ```
 
 Expected: `fetched=825 skipped=0 failed=0 bytes=21192342454` (give or take recent uploads). If `failed>0`, rerun the same command; current files are skipped.
@@ -1570,19 +1569,18 @@ url = json.load(open('zappa_settings.json'))['dev']['environment_variables']['DA
 print(urllib.parse.urlparse(url).password)" \
 | ssh root@node3.geskens.be 'set -e
 read -r PGPASSWORD; export PGPASSWORD
-cd /mnt/volume-ams3-01/shortterm_store
+cd /root/shortterm_store
 umask 077
 docker run --rm -e PGPASSWORD postgres:16 pg_dump \
   -h oemfoe-aws-2.cowc6c0hrwed.eu-central-1.rds.amazonaws.com -U postgres -d shorttermstore \
   --no-owner --no-acl -Fc > shorttermstore.dump
-cd app
 docker compose stop app cron
 set +e
 docker compose exec -T db pg_restore --clean --if-exists --no-owner --role=shorttermstore \
-  -U shorttermstore -d shorttermstore < ../shorttermstore.dump
+  -U shorttermstore -d shorttermstore < shorttermstore.dump
 rc=$?
 docker compose start app cron
-rm -f ../shorttermstore.dump
+rm -f shorttermstore.dump
 exit $rc'
 ```
 
@@ -1591,7 +1589,7 @@ Expected: the app is running again whatever happens. `pg_restore` may exit 1 wit
 - [ ] **Step 3: Compare row counts**
 
 ```bash
-ssh root@node3.geskens.be 'cd /mnt/volume-ams3-01/shortterm_store/app && docker compose exec -T db psql -U shorttermstore -d shorttermstore -c "select (select count(*) from store_item) items, (select count(*) from store_upload) uploads;"'
+ssh root@node3.geskens.be 'cd /root/shortterm_store && docker compose exec -T db psql -U shorttermstore -d shorttermstore -c "select (select count(*) from store_item) items, (select count(*) from store_upload) uploads;"'
 ```
 
 Compare with the same query against RDS (same `pg_dump` connection, using `psql` instead). Numbers must match.
@@ -1599,7 +1597,7 @@ Compare with the same query against RDS (same `pg_dump` connection, using `psql`
 - [ ] **Step 4: Verify storage against the database**
 
 ```bash
-ssh root@node3.geskens.be 'cd /mnt/volume-ams3-01/shortterm_store/app && docker compose exec -T app python manage.py verify_storage'
+ssh root@node3.geskens.be 'cd /root/shortterm_store && docker compose exec -T app python manage.py verify_storage'
 ```
 
 Expected: `Missing files: 0`. Orphan files are listed for information (files in S3 with no upload row); keep them.
@@ -1613,7 +1611,7 @@ On `https://new.shortterm.store/<existing guid>/` for a few real stores (pick gu
 ### Task 10: Cutover (ops, Jef picks the moment)
 
 - [ ] **Step 1:** A day before, lower the TTL of the `shortterm.store` record in Route 53 to 60 s.
-- [ ] **Step 2: Prepare node3 for the name, before DNS moves.** Add `shortterm.store` to the server `.env` (`ALLOWED_HOSTS=shortterm.store,new.shortterm.store`, `CSRF_TRUSTED_ORIGINS=https://shortterm.store,https://new.shortterm.store`) and run `docker compose up -d` in the app dir. In `/etc/nginx/sites-enabled/shortterm.store` add `shortterm.store` to **both** `server_name` lines (the 443 block keeps the `new.shortterm.store` certificate for now, so the brief gap shows a name mismatch for this site instead of another project's site, and the ACME challenge for `shortterm.store` hits our port-80 block). `nginx -t && systemctl reload nginx`.
+- [ ] **Step 2: Prepare node3 for the name, before DNS moves.** Add `shortterm.store` to the server `.env` (`ALLOWED_HOSTS=shortterm.store,new.shortterm.store`, `CSRF_TRUSTED_ORIGINS=https://shortterm.store,https://new.shortterm.store`) and run `docker compose up -d` in `/root/shortterm_store`. In `/etc/nginx/sites-enabled/shortterm.store` add `shortterm.store` to **both** `server_name` lines (the 443 block keeps the `new.shortterm.store` certificate for now, so the brief gap shows a name mismatch for this site instead of another project's site, and the ACME challenge for `shortterm.store` hits our port-80 block). `nginx -t && systemctl reload nginx`.
 - [ ] **Step 3: Stop writes on the old site.** `aws --profile geskens --region eu-central-1 lambda put-function-concurrency --function-name shorttermstore-dev --reserved-concurrent-executions 0` (and the same for `shorttermstore-test`). The old site now errors instead of accepting uploads. Undo with `aws ... lambda delete-function-concurrency --function-name shorttermstore-dev`.
 - [ ] **Step 4: Final sync.** Rerun Task 9 steps 1–4 (delta copy of files, fresh dump/restore, counts, `verify_storage`).
 - [ ] **Step 5: Switch DNS.** Point `shortterm.store` to `188.166.33.64` in Route 53.

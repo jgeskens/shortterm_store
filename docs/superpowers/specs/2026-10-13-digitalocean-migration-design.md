@@ -38,11 +38,11 @@ host nginx (TLS via certbot)
  ├─ /             → proxy_pass http://127.0.0.1:8400
  └─ /_protected/  → internal; alias /mnt/volume-ams3-01/shortterm_store/storage/
 
-docker compose project at /mnt/volume-ams3-01/shortterm_store/app
+docker compose project at /root/shortterm_store (same convention as the other projects on node3)
  ├─ app   python:3.12-slim + gunicorn, published on 127.0.0.1:8400 only (8000 is taken by queuebuddy)
  │        bind mount storage/ → /storage
  │        entrypoint: migrate, collectstatic, then gunicorn (2 sync workers, --timeout 300)
- ├─ db    postgres:16, data in /mnt/volume-ams3-01/shortterm_store/postgres
+ ├─ db    postgres:16, data in named volume shortterm_store_pgdata (like <project>_pgdata elsewhere)
  └─ cron  same image as app; shell loop running `manage.py cleanup_empty_stores` every 24h (idle cost: one `sh` process)
 ```
 
@@ -118,7 +118,7 @@ New management command `cleanup_empty_stores` calling `Item.objects.cleanup_empt
 
 - `Dockerfile`, `docker-compose.yml`, `docker/entrypoint.sh`
 - `deploy/nginx.conf` (vhost for `new.shortterm.store` / `shortterm.store`, installed manually once)
-- `deploy.sh` (target `root@node3.geskens.be:/mnt/volume-ams3-01/shortterm_store/app`, overridable via `DEPLOY_HOST`; rsync excluding `.git`, `.env`, `venv`, `.idea`, `__pycache__`, `storage`; then remote `docker compose up -d --build`)
+- `deploy.sh` (target `root@node3.geskens.be:/root/shortterm_store`, overridable via `DEPLOY_HOST`; rsync excluding `.git`, `.env`, `venv`, `.idea`, `__pycache__`, `storage`; then remote `docker compose up -d --build`)
 - `.dockerignore`
 - Update `dot_env_example.env` with the new variables.
 
