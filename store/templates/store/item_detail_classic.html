@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900|Material+Icons" rel="stylesheet" type="text/css">
+    <link href="https://cdn.jsdelivr.net/npm/animate.css@^4.0.0/animate.min.css" rel="stylesheet" type="text/css">
+    <link href="https://cdn.jsdelivr.net/npm/quasar@2.14.2/dist/quasar.prod.css" rel="stylesheet" type="text/css">
+
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ item.display_name }}</title>
+    <style>
+        .markdown-container img {
+            max-width: 100%;
+        }
+        .markdown-container h1, .markdown-container h2, .markdown-container h3, .markdown-container h4, .markdown-container h5, .markdown-container h6 {
+            margin-top: 0;
+        }
+        .markdown-container h1 {
+            font-size: 2rem;
+            line-height: 2rem;
+        }
+        .markdown-container h2 {
+            font-size: 1.5rem;
+            line-height: 1.5rem;
+            font-weight: bold;
+        }
+        .markdown-container h3 {
+            font-size: 1.3rem;
+            line-height: 1.3rem;
+        }
+        .markdown-container h4 {
+            font-size: 1rem;
+            line-height: 1rem;
+            font-weight: bold;
+        }
+        .main-slide-image {
+            background-image: none !important;
+        }
+        .zoomed-img {
+            cursor: zoom-out;
+            transform: scale(2.5);
+            transition: transform 0.3s ease-in-out;
+            z-index: 10;
+            transform-origin: center center;
+        }
+        .unzoomed-img {
+            cursor: zoom-in;
+            transition: transform 0.3s ease-in-out;
+        }
+        .q-carousel__slide {
+            overflow: auto !important;
+        }
+        .body--dark a:not(.q-btn) {
+            color: #2eb9ff !important;
+        }
+        .body--dark .markdown-container a {
+            color: #2eb9ff;
+        }
+        .q-card__actions .q-btn {
+            border-radius: 4px;
+        }
+        .markdown-container table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+        .markdown-container th, .markdown-container td {
+            border: 1px solid rgba(0, 0, 0, 0.12);
+            padding: 8px;
+            text-align: left;
+        }
+        .body--dark .markdown-container th, .body--dark .markdown-container td {
+            border: 1px solid rgba(255, 255, 255, 0.28);
+        }
+        .markdown-container th {
+            background-color: rgba(0, 0, 0, 0.03);
+        }
+        .body--dark .markdown-container th {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        .q-table th {
+            font-weight: bold !important;
+        }
+        .body--dark .q-table th {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        .uploader-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+    </style>
+</head>
+
+<body>
+<div id="q-app">
+
+    <q-layout view="hHh lpR fFf">
+
+        <q-header elevated class="bg-primary text-white">
+            <q-toolbar>
+                <q-toolbar-title>
+                    <div class="cursor-pointer">
+                        <span v-text="name"></span>
+                        <q-popup-edit v-model="newName" auto-save v-slot="scope">
+                            <q-input v-model="scope.value" dense autofocus auto-save @keyup.enter="scope.set"/>
+                        </q-popup-edit>
+                        <q-tooltip>Edit title</q-tooltip>
+                    </div>
+                    {#                    <span v-model="name"></span>#}
+                </q-toolbar-title>
+                <q-select borderless
+                          v-model="mode"
+                          :options="mode_options"
+                          label="Mode"
+                          label-color="white"
+                          :dark="true"
+                          :map-options="true"
+                          :emit-value="true"
+                          :dense="true"
+                          :options-dense="true"
+                          style="min-width: 150px"
+                          @update:model-value="handleChange()"></q-select>
+                <q-select borderless
+                          v-model="darkMode"
+                          :options="darkModeOptions"
+                          label="Dark mode"
+                          label-color="white"
+                          :dark="true"
+                          :map-options="true"
+                          :emit-value="true"
+                          :dense="true"
+                          :options-dense="true"
+                          class="q-ml-md"
+                          style="min-width: 100px"></q-select>
+                <q-btn flat round dense icon="upload" @click="uploadVisible=!uploadVisible">
+                    <q-tooltip>Upload</q-tooltip>
+                </q-btn>
+                <q-btn flat round dense icon="lock" @click="passwordDialog=true">
+                    <q-tooltip>Set password</q-tooltip>
+                </q-btn>
+            </q-toolbar>
+            {% if item.shortcut_expires > now %}
+                {{ short_link_expires }}
+                <q-toolbar v-if="in_db && short_link_expires !== null">
+                    <p class="text-body2">
+                        <a style="color: white !important;" href="/{{ item.shortcut }}/">shortterm.store/{{ item.shortcut }}</a>
+                        &nbsp;<em>Short link expires in {% verbatim %}{{ short_link_expires }}{% endverbatim %}</em>
+                    </p>
+                </q-toolbar>
+            {% endif %}
+        </q-header>
+
+        <q-page-container>
+
+            <q-carousel
+                    swipeable
+                    animated
+                    arrows
+                    thumbnails
+                    v-model="slide"
+                    v-model:fullscreen="fullscreen"
+                    infinite
+                    v-if="images.length > 0 && fullscreen"
+            >
+                <q-carousel-slide
+                        v-for="(image, index) in images"
+                        :key="index"
+                        :name="image.url"
+                        :img-src="image.url"
+                        class="no-padding main-slide-image"
+                >
+                    <q-img
+                            :src="image.url"
+                            fit="contain"
+                            height="100%"
+                            :class="zoomed ? 'zoomed-img' : 'unzoomed-img'"
+                            @click="zoomed = !zoomed"
+                    ></q-img>
+                </q-carousel-slide>
+
+                <template v-slot:control>
+                    <q-carousel-control
+                            position="top-right"
+                            :offset="[18, 18]"
+                    >
+                        <q-btn
+                                push round dense color="white" text-color="primary"
+                                :icon="fullscreen ? 'close' : 'fullscreen'"
+                                @click="fullscreen = !fullscreen"
+                        ></q-btn>
+                    </q-carousel-control>
+                </template>
+            </q-carousel>
+
+            <div v-show="uploadVisible" class="uploader-overlay" @click.self="uploadVisible=false">
+                <q-card style="min-width: 350px">
+                    <q-card-section class="row items-center q-pb-none">
+                        <div class="text-h6">Upload Files</div>
+                        <q-space></q-space>
+                        <q-btn icon="close" flat round dense @click="uploadVisible=false"></q-btn>
+                    </q-card-section>
+                    <q-card-section class="q-pt-none">
+                        <q-uploader
+                                ref="uploader"
+                                :url="getUploadUrl"
+                                :form-fields="getUploadFormFields"
+                                field-name="file"
+                                @added="fetchUploadParams"
+                                @uploaded="handleUploaded"
+                                @finish="handleUploadFinish"
+                                @start="handleUploadStart"
+                                @uploading="handleUploading"
+                                label="Upload"
+                                multiple
+                                style="max-width: 300px"
+                        ></q-uploader>
+                    </q-card-section>
+                </q-card>
+            </div>
+
+            <q-page-sticky position="bottom-right" :offset="[18, 18]" v-if="isUploading && !uploadVisible" style="z-index: 1500">
+                <q-btn fab color="primary" @click="uploadVisible = true">
+                    <q-circular-progress
+                            show-value
+                            font-size="10px"
+                            :value="uploadProgress"
+                            size="56px"
+                            :thickness="0.1"
+                            color="white"
+                            center-color="primary"
+                            class="absolute-full"
+                    >
+                        {% verbatim %}{{ Math.round(uploadProgress) }}%{% endverbatim %}
+                    </q-circular-progress>
+                    <q-tooltip>Uploading... Click to open</q-tooltip>
+                </q-btn>
+            </q-page-sticky>
+
+            <div class="fit row wrap justify-start items-start content-start" v-if="!locked">
+                <div class="col-md col-xs-12" v-if="mode=='simple' || mode=='editor'">
+                    <div class="q-pa-md">
+                        <q-input
+                                v-model="text"
+                                autogrow
+                                outlined
+                                type="textarea"
+                                v-on:keydown="handleChange()"
+                                v-on:keyup="handleKeyup"
+                                @paste="handlePaste"
+                        ></q-input>
+                    </div>
+                </div>
+
+                <div class="col-md col-xs-12" v-if="mode=='editor' || mode=='reader'">
+                     <div class="q-pa-md">
+                        <q-card flat bordered>
+                            <q-card-section>
+                                <div class="markdown-container" v-html="markdown_parse(text)"></div>
+                            </q-card-section>
+                        </q-card>
+                    </div>
+                </div>
+            </div>
+
+            <div v-if="!locked && uploads.length > 0">
+                <div class="q-pa-md">
+                    <q-table
+                            flat
+                            bordered
+                            title="Files"
+                            :rows="uploads"
+                            :columns="columns"
+                            row-key="guid"
+                            :pagination="{rowsPerPage: 0}"
+                            hide-pagination
+                    >
+                        <template v-slot:body-cell-preview="props">
+                            <q-td :props="props">
+                                <q-img
+                                        v-if="props.row.is_image"
+                                        :src="props.row.url"
+                                        style="width: 50px; height: 50px;"
+                                        fit="scale-down"
+                                        @click="fullscreen=true; slide=props.row.url"
+                                        class="cursor-pointer"
+                                ></q-img>
+                                <audio v-else-if="props.row.is_audio" :src="props.row.url" controls style="height: 30px; width: 200px; vertical-align: middle;" preload="auto" @ended="playNextAudio($event)" @play="preloadNextAudio($event)"></audio>
+                                <q-icon v-else name="file_present" size="sm"></q-icon>
+                            </q-td>
+                        </template>
+
+                        <template v-slot:body-cell-filename="props">
+                            <q-td :props="props">
+                                <a :href="props.row.url" v-text="props.row.filename"></a>
+                            </q-td>
+                        </template>
+
+                        <template v-slot:body-cell-modified="props">
+                            <q-td :props="props">
+                                {% verbatim %}{{ formatDate(props.row.modified) }}{% endverbatim %}
+                            </q-td>
+                        </template>
+
+                        <template v-slot:body-cell-actions="props">
+                            <q-td :props="props">
+                                <q-btn color="grey-7" round flat icon="more_vert">
+                                    <q-menu cover auto-close>
+                                        <q-list>
+                                            <q-item clickable @click="deleteUpload(props.row.guid)">
+                                                <q-item-section>Delete</q-item-section>
+                                            </q-item>
+                                        </q-list>
+                                    </q-menu>
+                                </q-btn>
+                            </q-td>
+                        </template>
+                    </q-table>
+                </div>
+            </div>
+
+            <q-dialog v-model="passwordDialog" persistent>
+                <q-card style="min-width: 350px">
+                    <q-card-section>
+                        <div class="text-h6">Set password</div>
+                    </q-card-section>
+                    <q-card-section class="q-pt-none">
+                        <q-input dense v-model="newPassword" autofocus @keyup.enter="setPassword" type="password" label="New password"/>
+                    </q-card-section>
+                    <q-card-actions align="right">
+                        <q-btn flat label="Cancel" v-close-popup></q-btn>
+                        <q-btn flat label="Set" @click="setPassword" v-close-popup></q-btn>
+                    </q-card-actions>
+                </q-card>
+            </q-dialog>
+
+            <q-dialog v-model="promptPasswordDialog" persistent>
+                <q-card style="min-width: 350px">
+                    <q-card-section>
+                        <div class="text-h6">Password protected</div>
+                    </q-card-section>
+                    <q-card-section class="q-pt-none">
+                        <q-input dense v-model="inputPassword" autofocus @keyup.enter="verifyPassword" type="password" label="Enter password"/>
+                    </q-card-section>
+                    <q-card-actions align="right">
+                        <q-btn flat label="Unlock" @click="verifyPassword"></q-btn>
+                    </q-card-actions>
+                </q-card>
+            </q-dialog>
+
+        </q-page-container>
+
+    </q-layout>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@3.4.13/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quasar@2.14.2/dist/quasar.umd.prod.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.0.19/marked.min.js"
+        integrity="sha512-CPGsmz+2yVpGnri/iBEoPVrRHiPaHQ3gzuSCfmfnZ2KKF/GKMvW8S7uVFRbZD0uOVMaNYY4HCATeCShxZWgp6w=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.0/purify.min.js"
+        integrity="sha512-/hVAZO5POxCKdZMSLefw30xEVwjm94PAV9ynjskGbIpBvHO9EBplEcdUlBdCKutpZsF+La8Ag4gNrG0gAOn3Ig=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/expr-eval/0.10.0/bundle.min.js"
+        integrity="sha512-+igwJj4NcCpguyr7R2azSh5Hl3qOsOKo1WAFbDCxXAPoxLqqgHE3zpU/twAxGsrQrC3Q6hnLurBDbYHYLD9SpQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<script>
+    const app = Vue.createApp({
+        setup() {
+        },
+        data() {
+            return {
+                name: 'Store {{ item.guid }}',
+                newName: '',
+                text: '',
+                uploads: [],
+                uploadVisible: false,
+                isUploading: false,
+                uploadProgress: 0,
+                progressInterval: null,
+                updateInterval: null,
+                changeTimeout: null,
+                uploadParamsCache: {},
+                dataLoaded: false,
+                in_db: false,
+                locked: false,
+                passwordDialog: false,
+                promptPasswordDialog: false,
+                newPassword: '',
+                inputPassword: '',
+                short_link_expires: null,
+                password_token: '',
+                preventUpdates: false,
+                mode_options: [
+                    {label: 'Simple', value: 'simple'},
+                    {label: 'Markdown Editor', value: 'editor'},
+                    {label: 'Markdown Reader', value: 'reader'}
+                ],
+                mode: 'simple',
+                darkMode: localStorage.getItem('darkMode') || 'auto',
+                darkModeOptions: [
+                    {label: 'On', value: 'on'},
+                    {label: 'Off', value: 'off'},
+                    {label: 'System', value: 'auto'}
+                ],
+                slide: null,
+                fullscreen: false,
+                zoomed: false,
+                scrollPosition: 0,
+                columns: [
+                    {name: 'preview', label: 'Preview', field: 'url', align: 'left', style: 'width: 60px'},
+                    {name: 'filename', label: 'Filename', field: 'filename', align: 'left', sortable: true, style: 'max-width: 300px; word-break: break-all;'},
+                    {name: 'modified', label: 'Modified', field: 'modified', align: 'left', sortable: true},
+                    {name: 'actions', label: 'Actions', field: 'guid', align: 'right'}
+                ]
+            }
+        },
+        created() {
+            let that = this;
+            this.$q.dark.set(this.darkMode === 'on' ? true : (this.darkMode === 'off' ? false : 'auto'));
+            this.update();
+            this.setUpdateInterval();
+            window.addEventListener('keydown', function(event){
+                if (event.code === 'Escape') {
+                    that.fullscreen = false;
+                } else if (event.code === 'ArrowLeft') {
+                    if (that.images.length === 0)
+                        return;
+                    let image_urls = that.images.map(i => i.url);
+                    let image_pos = image_urls.indexOf(that.slide);
+                    image_pos = (image_pos - 1 + image_urls.length) % image_urls.length;
+                    that.slide = image_urls[image_pos];
+                } else if (event.code === 'ArrowRight') {
+                    if (that.images.length === 0)
+                        return;
+                    let image_urls = that.images.map(i => i.url);
+                    let image_pos = image_urls.indexOf(that.slide);
+                    image_pos = (image_pos + 1) % image_urls.length;
+                    that.slide = image_urls[image_pos];
+                }
+            });
+        },
+        watch: {
+            slide(val) {
+                this.zoomed = false;
+            },
+            uploadVisible(val) {
+                if (val) {
+                    this.scrollPosition = window.scrollY;
+                    document.body.style.overflow = 'hidden';
+                } else {
+                    document.body.style.overflow = '';
+                    this.$nextTick(() => {
+                        window.scrollTo(0, this.scrollPosition);
+                    });
+                }
+            },
+            newName(val) {
+                if (!this.dataLoaded)
+                    return;
+                let that = this;
+                that.preventUpdates = true;
+                this.submitData({name: val}).then(function (response) {
+                    that.update();
+                }).finally(function () {
+                    that.preventUpdates = false;
+                });
+            },
+            darkMode(val) {
+                this.$q.dark.set(val === 'on' ? true : (val === 'off' ? false : 'auto'));
+                localStorage.setItem('darkMode', val);
+            }
+        },
+        computed: {
+            images () {
+                return this.uploads.filter(u => u.is_image);
+            }
+        },
+        methods: {
+            setUpdateInterval() {
+                let that = this;
+                if (that.updateInterval !== null)
+                    clearInterval(that.updateInterval);
+                that.updateInterval = setInterval(function () {
+                    that.update();
+                }, 3000);
+            },
+            update() {
+                if (this.preventUpdates)
+                    return;
+
+                let that = this;
+                const headers = {};
+                const storedPassword = localStorage.getItem('password-{{ item.guid }}');
+                if (storedPassword) {
+                    headers['X-Item-Password'] = storedPassword;
+                }
+
+                fetch('{{ request.path }}?json', {headers: headers}).then(function (response) {
+                    if (response.status === 403) {
+                        that.locked = true;
+                        that.promptPasswordDialog = true;
+                        return;
+                    }
+                    response.json().then(function (jsonResponse) {
+                        if (that.preventUpdates)
+                            return;
+
+                        that.dataLoaded = true;
+                        // console.log(jsonResponse);
+                        that.text = jsonResponse.text;
+                        that.name = jsonResponse.display_name;
+                        that.mode = jsonResponse.mode;
+                        that.newName = jsonResponse.name;
+                        that.uploads = jsonResponse.uploads.map(function(upload) {
+                            if (jsonResponse.password_token) {
+                                upload.url += (upload.url.indexOf('?') === -1 ? '?' : '&') + 't=' + encodeURIComponent(jsonResponse.password_token);
+                            }
+                            return upload;
+                        });
+                        let images = that.uploads.filter(u => u.is_image);
+                        let image_urls = images.map(i => i.url);
+                        if (!that.slide || image_urls.indexOf(that.slide) === -1)
+                            that.slide = (images.length > 0 ? images[0].url : null);
+                        that.in_db = jsonResponse.in_db;
+                        that.short_link_expires = jsonResponse.short_link_expires;
+                        that.password_token = jsonResponse.password_token;
+                        window.document.title = jsonResponse.display_name;
+                    });
+                });
+            },
+            setChangeTimeout() {
+                let that = this;
+                if (that.changeTimeout !== null)
+                    clearTimeout(that.changeTimeout);
+                that.changeTimeout = setTimeout(function () {
+                    that.submitChange();
+                }, 500);
+            },
+            submitData(data) {
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                };
+                const storedPassword = localStorage.getItem('password-{{ item.guid }}');
+                if (storedPassword) {
+                    headers['X-Item-Password'] = storedPassword;
+                }
+                return fetch('{{ request.path }}', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(data)
+                });
+            },
+            setPassword() {
+                let that = this;
+                this.submitData({password: this.newPassword}).then(function () {
+                    localStorage.setItem('password-{{ item.guid }}', that.newPassword);
+                    that.newPassword = '';
+                    that.passwordDialog = false;
+                    that.$q.notify({
+                        message: 'Password set',
+                        color: 'positive'
+                    });
+                });
+            },
+            verifyPassword() {
+                let that = this;
+                fetch('{{ request.path }}verify-password/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({password: this.inputPassword})
+                }).then(function (response) {
+                    if (response.ok) {
+                        localStorage.setItem('password-{{ item.guid }}', that.inputPassword);
+                        that.locked = false;
+                        that.promptPasswordDialog = false;
+                        that.update();
+                    } else {
+                        localStorage.removeItem('password-{{ item.guid }}');
+                        that.$q.notify({
+                            message: 'Incorrect password',
+                            color: 'negative'
+                        });
+                    }
+                });
+            },
+            submitChange() {
+                let that = this;
+                that.preventUpdates = true;
+                that.submitData({'text': this.text, 'mode': this.mode}).then(function (result) {
+                    console.log(result);
+                }).finally(function () {
+                    that.preventUpdates = false;
+                });
+            },
+            handleChange() {
+                this.preventUpdates = true;
+                this.setUpdateInterval();
+                this.setChangeTimeout();
+            },
+            getUploadParamsCacheKey(file) {
+                return file.name + file.size;
+            },
+            fetchUploadParams(files) {
+                let that = this;
+                const headers = {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                };
+                const storedPassword = localStorage.getItem('password-{{ item.guid }}');
+                if (storedPassword) {
+                    headers['X-Item-Password'] = storedPassword;
+                }
+                for (let file of files) {
+                    let key = this.getUploadParamsCacheKey(file);
+                    let formData = new FormData();
+                    formData.append('filename', file.name);
+                    fetch('{{ request.path }}generate-upload-params/', {
+                        method: 'POST',
+                        headers: headers,
+                        body: formData
+                    }).then(function (result) {
+                        result.json().then(function (resultData) {
+                            that.uploadParamsCache[key] = resultData;
+                            console.log(that.uploadParamsCache);
+                        });
+                    });
+                }
+            },
+            getUploadUrl(files) {
+                const url = this.uploadParamsCache[this.getUploadParamsCacheKey(files[0])].url;
+                console.log('getUploadUrl', url);
+                return url;
+            },
+            getUploadFormFields(files) {
+                const fields = this.uploadParamsCache[this.getUploadParamsCacheKey(files[0])].fields;
+                const formFields = [];
+                for (const [key, value] of Object.entries(fields)) {
+                    formFields.push({name: key, value: value});
+                }
+                console.log('getUploadFormFields', formFields);
+                return formFields;
+            },
+            handleUploading(info) {
+                if (this.$refs.uploader) {
+                    // Update progress based on files
+                    const files = this.$refs.uploader.files;
+                    if (files && files.length > 0) {
+                        let totalLoaded = 0;
+                        let totalSize = 0;
+                        files.forEach(f => {
+                            if (f.__status === 'uploading' || f.__status === 'uploaded') {
+                                totalLoaded += (f.__uploaded || 0);
+                            }
+                            totalSize += f.size;
+                        });
+                        if (totalSize > 0) {
+                            this.uploadProgress = (totalLoaded / totalSize) * 100;
+                        }
+                    }
+                }
+            },
+            handleUploadStart() {
+                this.isUploading = true;
+                this.uploadProgress = 0;
+                if (this.progressInterval) {
+                    clearInterval(this.progressInterval);
+                }
+                this.progressInterval = setInterval(() => {
+                    this.handleUploading();
+                }, 100);
+            },
+            handleUploadFinish() {
+                if (this.progressInterval) {
+                    clearInterval(this.progressInterval);
+                    this.progressInterval = null;
+                }
+                this.uploadVisible = false;
+                this.isUploading = false;
+                this.uploadProgress = 0;
+                this.$refs.uploader.reset();
+            },
+            handleUploaded(info) {
+                if (this.$refs.uploader) {
+                    this.handleUploading();
+                }
+                // console.log('handleUploaded', info);
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                };
+                const storedPassword = localStorage.getItem('password-{{ item.guid }}');
+                if (storedPassword) {
+                    headers['X-Item-Password'] = storedPassword;
+                }
+                for (const file of info.files) {
+                    fetch('{{ request.path }}upload/', {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify({
+                            'key': '{{ item.guid }}/' + file.name,
+                            'url': info.xhr.responseURL + '/{{ item.guid }}/' + file.name
+                        })
+                    }).then(function (result) {
+                        console.log(result);
+                    });
+                }
+            },
+            deleteUpload(upload_guid) {
+                this.uploads = this.uploads.filter(upload => upload.guid !== upload_guid);
+                const headers = {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                };
+                const storedPassword = localStorage.getItem('password-{{ item.guid }}');
+                if (storedPassword) {
+                    headers['X-Item-Password'] = storedPassword;
+                }
+                fetch('{{ request.path }}upload/' + upload_guid + '/delete/', {
+                    method: 'POST',
+                    headers: headers
+                }).then(function (result) {
+                    console.log(result);
+                });
+            },
+            markdown_parse(text) {
+                let that = this;
+                let html = DOMPurify.sanitize(marked.parse(text));
+
+                setTimeout(function(){
+                    window.vm = that;
+                    let imgs = document.getElementsByTagName('img');
+                    for (let img of imgs) {
+                        img.style.cursor = 'pointer';
+                        img.removeEventListener('click', handleImageClick);
+                        img.addEventListener('click', handleImageClick);
+                    }
+                }, 100);
+
+                return html;
+            },
+            handleKeyup(event){
+                let pos = event.target.selectionStart;
+                let char = event.target.value[pos-1];
+                if (char === '=' && event.code !== 'Backspace' && event.code !== 'Delete') {
+                    let input = event.target;
+                    let val = input.value;
+                    let start = val.lastIndexOf('\n', pos - 1) + 1;
+                    let end = val.indexOf('\n', pos);
+                    if (end === -1)
+                        end = val.length;
+                    let expression = val.substring(start, end-1);
+                    let result = this.evaluate_expression(expression);
+                    let extra = result.length + 1;
+                    if (result) {
+                        input.setRangeText(' ' + result, pos, input.selectionEnd, 'end');
+                        this.text = input.value;
+                        this.submitChange();
+                    }
+                }
+            },
+            evaluate_expression(expression) {
+                let expr = exprEval.Parser.parse(expression);
+                return expr.evaluate();
+            },
+            playNextAudio(event) {
+                const currentAudio = event.target;
+                const currentRow = currentAudio.closest('tr');
+                if (!currentRow) return;
+
+                let nextRow = currentRow.nextElementSibling;
+                while (nextRow) {
+                    const nextAudio = nextRow.querySelector('audio');
+                    if (nextAudio) {
+                        nextAudio.play();
+                        return;
+                    }
+                    nextRow = nextRow.nextElementSibling;
+                }
+            },
+            preloadNextAudio(event) {
+                const currentAudio = event.target;
+                const currentRow = currentAudio.closest('tr');
+                if (!currentRow) return;
+
+                let nextRow = currentRow.nextElementSibling;
+                while (nextRow) {
+                    const nextAudio = nextRow.querySelector('audio');
+                    if (nextAudio) {
+                        nextAudio.load();
+                        return;
+                    }
+                    nextRow = nextRow.nextElementSibling;
+                }
+            },
+            formatDate(dateStr) {
+                if (!dateStr) return '';
+                const date = new Date(dateStr);
+                return date.toLocaleString();
+            },
+            handlePaste(event) {
+                let that = this;
+                if (event.clipboardData.files.length > 0) {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    let file = event.clipboardData.files[0];
+
+                    let input = event.target;
+                    input.setRangeText('![...uploading image...]()', input.selectionStart, input.selectionEnd, 'select');
+
+                    let filename = 'image_' + Date.now() + '.png';
+                    let formData = new FormData();
+                    formData.append('filename', filename);
+                    let headers = {
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    };
+                    const storedPassword = localStorage.getItem('password-{{ item.guid }}');
+                    if (storedPassword) {
+                        headers['X-Item-Password'] = storedPassword;
+                    }
+                    fetch('{{ request.path }}generate-upload-params/', {
+                        method: 'POST',
+                        headers: headers,
+                        body: formData
+                    }).then(function (result) {
+                        result.json().then(function (resultData) {
+                            let url = resultData.url;
+                            let formData = new FormData();
+                            for (let [key, value] of Object.entries(resultData.fields)) {
+                                formData.append(key, value);
+                            }
+                            formData.append('file', file, filename);
+                            fetch(url, {
+                                method: 'POST',
+                                body: formData
+                            }).then(function(result){
+                                let uploadHeaders = {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': '{{ csrf_token }}'
+                                };
+                                if (storedPassword) {
+                                    uploadHeaders['X-Item-Password'] = storedPassword;
+                                }
+                                fetch('{{ request.path }}upload/', {
+                                    method: 'POST',
+                                    headers: uploadHeaders,
+                                    body: JSON.stringify({
+                                        'key': '{{ item.guid }}/' + filename,
+                                        'url': result.url + '/{{ item.guid }}/' + filename
+                                    })
+                                }).then(function (result) {
+                                    result.json().then(function(data){
+                                        let finalUrl = data.url;
+                                        if (that.password_token) {
+                                            finalUrl += '?t=' + encodeURIComponent(that.password_token);
+                                        }
+                                        input.setRangeText('![](' + finalUrl + ')', input.selectionStart, input.selectionEnd, 'start');
+                                        input.selectionStart += 2;
+                                        input.setRangeText('insert image description here', input.selectionStart, input.selectionEnd, 'select');
+                                        that.text = input.value;
+                                        that.submitChange();
+                                    });
+                                });
+                            });
+                        });
+                    });
+                }
+            }
+        }
+    });
+
+    function handleImageClick(event) {
+        let url = event.target.src;
+        let relativeUrl = url.replace(/https?:\/\/[^/]*/, '');
+        // find if we have an upload with this url or relative url
+        let found = vm.images.find(i => i.url === url || i.url === relativeUrl);
+        if (found) {
+            vm.slide = found.url;
+        } else {
+            vm.slide = relativeUrl;
+        }
+        vm.fullscreen = true;
+    }
+
+    app.use(Quasar)
+    app.mount('#q-app')
+</script>
+</body>
+</html>

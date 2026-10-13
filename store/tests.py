@@ -173,3 +173,38 @@ class PasswordProtectionTest(TempStorageMixin, TestCase):
         download_url = reverse('upload_download', args=(self.item_guid, str(upload.guid)))
         response = self.client.get(f'{download_url}?t={password_token}')
         self.assertEqual(response.status_code, 200)
+
+
+class ShortLinkExpiryTest(TestCase):
+    def test_json_includes_expiry_timestamp_while_short_link_is_valid(self):
+        item = Item.objects.create(text='hello')
+        data = json.loads(self.client.get(f'/{item.guid}/?json').content)
+        self.assertEqual(data['short_link_expires_at'], item.shortcut_expires().isoformat())
+
+    def test_json_expiry_timestamp_is_null_after_short_link_expired(self):
+        from datetime import timedelta
+        from django.utils.timezone import now
+        item = Item.objects.create(text='hello')
+        Item.objects.filter(pk=item.pk).update(created=now() - timedelta(minutes=10))
+        data = json.loads(self.client.get(f'/{item.guid}/?json').content)
+        self.assertIsNone(data['short_link_expires_at'])
+
+
+class DesignByHostTest(TestCase):
+    def render_with_host(self, host):
+        item = Item.objects.create(text='hello')
+        with self.settings(ALLOWED_HOSTS=['*'], NEW_DESIGN_HOSTS=['new.shortterm.store']):
+            return self.client.get(f'/{item.guid}/', HTTP_HOST=host)
+
+    def test_new_domain_gets_new_design(self):
+        response = self.render_with_host('new.shortterm.store')
+        self.assertTemplateUsed(response, 'store/item_detail.html')
+        self.assertTemplateNotUsed(response, 'store/item_detail_classic.html')
+
+    def test_original_domain_gets_classic_design(self):
+        response = self.render_with_host('shortterm.store')
+        self.assertTemplateUsed(response, 'store/item_detail_classic.html')
+
+    def test_unknown_host_gets_classic_design(self):
+        response = self.render_with_host('localhost:8000')
+        self.assertTemplateUsed(response, 'store/item_detail_classic.html')

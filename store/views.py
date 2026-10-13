@@ -135,6 +135,7 @@ def item_detail(request, item_shortcut=''):
                 't': get_item_password_token(item),
                 'password_token': get_item_password_token(item),
                 'short_link_expires': timeuntil(item.shortcut_expires()) if item.shortcut_expires() > now() else None,
+                'short_link_expires_at': item.shortcut_expires().isoformat() if item.shortcut_expires() > now() else None,
                 'uploads': [
                     {
                         'guid': str(u.guid),
@@ -148,7 +149,11 @@ def item_detail(request, item_shortcut=''):
                 ]
             })
 
-        return render(request, 'store/item_detail.html', {'item': item, 'now': now})
+        if request.get_host() in settings.NEW_DESIGN_HOSTS:
+            template = 'store/item_detail.html'
+        else:
+            template = 'store/item_detail_classic.html'
+        return render(request, template, {'item': item, 'now': now})
     else:
         raise Http404
 

@@ -1,369 +1,672 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
-    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900|Material+Icons" rel="stylesheet" type="text/css">
-    <link href="https://cdn.jsdelivr.net/npm/animate.css@^4.0.0/animate.min.css" rel="stylesheet" type="text/css">
-    <link href="https://cdn.jsdelivr.net/npm/quasar@2.14.2/dist/quasar.prod.css" rel="stylesheet" type="text/css">
-
-
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ item.display_name }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Instrument+Serif&display=swap" rel="stylesheet">
+    <script>
+        // Apply the stored theme before first paint so dark mode doesn't flash.
+        (function () {
+            var mode = 'auto';
+            try { mode = localStorage.getItem('darkMode') || 'auto'; } catch (e) {}
+            if (mode === 'on') document.documentElement.setAttribute('data-theme', 'dark');
+            else if (mode === 'off') document.documentElement.setAttribute('data-theme', 'light');
+        })();
+    </script>
     <style>
-        .markdown-container img {
-            max-width: 100%;
+        :root {
+            --bg: #f4f3ef;
+            --paper: #fbfaf7;
+            --ink: #161614;
+            --ink-2: #5d5c57;
+            --ink-3: #9a988f;
+            --line: #e1dfd7;
+            --line-strong: #c4c1b6;
+            --grid: rgba(22, 22, 20, 0.045);
+            --signal: #e0531f;
+            --signal-ink: #ffffff;
+            --signal-wash: rgba(224, 83, 31, 0.08);
+            --danger: #c2321f;
+            --ok: #2f8a5b;
+            --serif: 'Instrument Serif', 'Times New Roman', serif;
+            --sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
+            --mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+            --cell: 12px 16px;
+            color-scheme: light;
         }
-        .markdown-container h1, .markdown-container h2, .markdown-container h3, .markdown-container h4, .markdown-container h5, .markdown-container h6 {
-            margin-top: 0;
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --bg: #0e0e0d;
+                --paper: #151514;
+                --ink: #ecebe6;
+                --ink-2: #a3a199;
+                --ink-3: #6b6a64;
+                --line: #2a2a27;
+                --line-strong: #43423e;
+                --grid: rgba(236, 235, 230, 0.04);
+                --signal: #ff7240;
+                --signal-ink: #160a05;
+                --signal-wash: rgba(255, 114, 64, 0.1);
+                --danger: #ff6b57;
+                --ok: #5fc48f;
+                color-scheme: dark;
+            }
         }
-        .markdown-container h1 {
-            font-size: 2rem;
-            line-height: 2rem;
+        :root[data-theme="dark"] {
+            --bg: #0e0e0d;
+            --paper: #151514;
+            --ink: #ecebe6;
+            --ink-2: #a3a199;
+            --ink-3: #6b6a64;
+            --line: #2a2a27;
+            --line-strong: #43423e;
+            --grid: rgba(236, 235, 230, 0.04);
+            --signal: #ff7240;
+            --signal-ink: #160a05;
+            --signal-wash: rgba(255, 114, 64, 0.1);
+            --danger: #ff6b57;
+            --ok: #5fc48f;
+            color-scheme: dark;
         }
-        .markdown-container h2 {
-            font-size: 1.5rem;
-            line-height: 1.5rem;
-            font-weight: bold;
+
+        * { box-sizing: border-box; }
+        html, body { margin: 0; }
+        body {
+            padding: 28px;
+            background: var(--bg);
+            color: var(--ink);
+            font: 14px/1.6 var(--sans);
+            -webkit-font-smoothing: antialiased;
         }
-        .markdown-container h3 {
-            font-size: 1.3rem;
-            line-height: 1.3rem;
+        [v-cloak] { display: none; }
+        button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+        :focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+        .mono { font-family: var(--mono); }
+        .label {
+            font: 500 10.5px/1.4 var(--mono);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--ink-3);
         }
-        .markdown-container h4 {
-            font-size: 1rem;
-            line-height: 1rem;
-            font-weight: bold;
+        .icon { width: 16px; height: 16px; flex: none; }
+        .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+        /* Frame: one hairline box with + ticks on its corners */
+        .frame {
+            position: relative;
+            max-width: 1320px;
+            margin: 0 auto;
+            border: 1px solid var(--line-strong);
+            background: var(--paper);
         }
-        .main-slide-image {
-            background-image: none !important;
+        .tick { position: absolute; width: 11px; height: 11px; color: var(--ink-3); pointer-events: none; }
+        .tick.tl { left: -6px; top: -6px; } .tick.tr { right: -6px; top: -6px; }
+        .tick.bl { left: -6px; bottom: -6px; } .tick.br { right: -6px; bottom: -6px; }
+
+        /* Header */
+        .head {
+            display: grid;
+            grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.2fr) auto;
+            border-bottom: 1px solid var(--line-strong);
         }
-        .zoomed-img {
-            cursor: zoom-out;
-            transform: scale(2.5);
-            transition: transform 0.3s ease-in-out;
-            z-index: 10;
-            transform-origin: center center;
-        }
-        .unzoomed-img {
-            cursor: zoom-in;
-            transition: transform 0.3s ease-in-out;
-        }
-        .q-carousel__slide {
-            overflow: auto !important;
-        }
-        .body--dark a:not(.q-btn) {
-            color: #2eb9ff !important;
-        }
-        .body--dark .markdown-container a {
-            color: #2eb9ff;
-        }
-        .q-card__actions .q-btn {
-            border-radius: 4px;
-        }
-        .markdown-container table {
-            border-collapse: collapse;
+        .head > div { padding: var(--cell); border-right: 1px solid var(--line); min-width: 0; }
+        .head > div:last-child { border-right: 0; }
+        .title-input {
+            display: block;
             width: 100%;
-            margin-bottom: 1rem;
+            margin: 2px 0 0;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: var(--ink);
+            font: 34px/1.1 var(--serif);
+            letter-spacing: -0.01em;
+            text-overflow: ellipsis;
         }
-        .markdown-container th, .markdown-container td {
-            border: 1px solid rgba(0, 0, 0, 0.12);
-            padding: 8px;
-            text-align: left;
+        .title-input::placeholder { color: var(--ink-3); }
+        .title-input:focus { outline: none; }
+        .title-cell:focus-within .label { color: var(--signal); }
+
+        .link-cell { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+        .link-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .link {
+            font: 13px/1.3 var(--mono);
+            color: var(--ink);
+            text-decoration: none;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
-        .body--dark .markdown-container th, .body--dark .markdown-container td {
-            border: 1px solid rgba(255, 255, 255, 0.28);
+        .link b { font-weight: 500; }
+        .link:hover { text-decoration: underline; text-underline-offset: 3px; }
+        .countdown {
+            font: 500 11px/1 var(--mono);
+            padding: 4px 6px;
+            background: var(--signal);
+            color: var(--signal-ink);
+            font-variant-numeric: tabular-nums;
         }
-        .markdown-container th {
-            background-color: rgba(0, 0, 0, 0.03);
-        }
-        .body--dark .markdown-container th {
-            background-color: rgba(255, 255, 255, 0.05);
-        }
-        .q-table th {
-            font-weight: bold !important;
-        }
-        .body--dark .q-table th {
-            color: rgba(255, 255, 255, 0.7);
-        }
-        .uploader-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.4);
-            display: flex;
-            justify-content: center;
+        .icon-btn {
+            display: inline-flex;
             align-items: center;
-            z-index: 2000;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            border: 1px solid transparent;
+            color: var(--ink-2);
+            flex: none;
+        }
+        .icon-btn:hover { border-color: var(--line-strong); color: var(--ink); }
+        .icon-btn.on { color: var(--signal); }
+        .copy-btn { margin-left: auto; }
+
+        .ctrl-cell { display: flex; align-items: center; gap: 14px; }
+        .seg { display: flex; }
+        .seg button {
+            font: 500 11px/1 var(--mono);
+            letter-spacing: 0.06em;
+            padding: 8px 10px;
+            border: 1px solid var(--line-strong);
+            margin-left: -1px;
+            color: var(--ink-2);
+        }
+        .seg button:first-child { margin-left: 0; }
+        .seg button:hover { color: var(--ink); }
+        .seg button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); position: relative; }
+        .ctrl-icons { display: flex; gap: 2px; }
+
+        /* Workspace on a 24px grid */
+        .work {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            min-height: 46vh;
+            background-color: var(--paper);
+            background-image:
+                linear-gradient(var(--grid) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+            background-size: 24px 24px;
+            background-position: -1px -1px;
+        }
+        .work.single { grid-template-columns: minmax(0, 1fr); }
+        .pane { position: relative; min-width: 0; padding: 22px 24px 28px; }
+        .pane + .pane { border-left: 1px solid var(--line-strong); }
+        .pane-label { position: absolute; top: 8px; right: 12px; }
+        .editor {
+            display: block;
+            width: 100%;
+            min-height: 40vh;
+            padding: 0;
+            border: 0;
+            resize: none;
+            overflow: hidden;
+            background: transparent;
+            color: var(--ink);
+            font: 14px/24px var(--mono);
+            caret-color: var(--signal);
+        }
+        .editor:focus { outline: none; }
+        .editor::placeholder { color: var(--ink-3); }
+        .hints { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; }
+        .hints span { display: inline-flex; gap: 6px; align-items: center; }
+        kbd {
+            font: 500 10.5px/1 var(--mono);
+            padding: 3px 5px;
+            border: 1px solid var(--line-strong);
+            border-bottom-width: 2px;
+            color: var(--ink-2);
+        }
+
+        /* Rendered markdown */
+        .md { font-size: 15px; line-height: 1.7; overflow-wrap: anywhere; }
+        .md > :first-child { margin-top: 0; }
+        .md h1, .md h2, .md h3 { font-family: var(--serif); font-weight: 400; line-height: 1.15; margin: 1.2em 0 0.4em; }
+        .md h1 { font-size: 34px; } .md h2 { font-size: 26px; } .md h3 { font-size: 21px; }
+        .md h4, .md h5, .md h6 { font-size: 13px; font-weight: 500; margin: 1.2em 0 0.4em; }
+        .md a { color: var(--signal); text-underline-offset: 3px; }
+        .md img { max-width: 100%; cursor: zoom-in; border: 1px solid var(--line); }
+        .md code { font: 13px var(--mono); background: var(--signal-wash); padding: 1px 4px; }
+        .md pre { background: var(--bg); border: 1px solid var(--line); padding: 12px 14px; overflow: auto; }
+        .md pre code { background: none; padding: 0; }
+        .md blockquote { margin: 0; padding-left: 14px; border-left: 2px solid var(--signal); color: var(--ink-2); }
+        .md hr { border: 0; border-top: 1px solid var(--line-strong); }
+        .md table { border-collapse: collapse; width: 100%; margin: 0 0 1rem; font-size: 13px; }
+        .md th, .md td { border: 1px solid var(--line-strong); padding: 6px 10px; text-align: left; }
+        .md th { font: 500 10.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); background: var(--bg); }
+        .empty-read { color: var(--ink-3); font-family: var(--serif); font-size: 22px; }
+
+        /* Locked */
+        .locked { display: flex; align-items: center; justify-content: center; padding: 48px 24px; }
+        .unlock { width: min(360px, 100%); border: 1px solid var(--line-strong); background: var(--paper); }
+        .unlock > * { padding: 14px 16px; }
+        .unlock > * + * { border-top: 1px solid var(--line); }
+        .unlock h2 { margin: 4px 0 0; font: 28px/1.1 var(--serif); font-weight: 400; }
+
+        /* Fields and buttons */
+        .field {
+            display: block;
+            width: 100%;
+            padding: 9px 10px;
+            border: 1px solid var(--line-strong);
+            background: var(--paper);
+            color: var(--ink);
+            font: 14px var(--mono);
+        }
+        .field:focus { outline: none; border-color: var(--signal); box-shadow: 0 0 0 3px var(--signal-wash); }
+        .btn {
+            font: 500 11px/1 var(--mono);
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            padding: 10px 12px;
+            border: 1px solid var(--line-strong);
+        }
+        .btn:hover { border-color: var(--ink); }
+        .btn.primary { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+        .btn.danger { color: var(--danger); }
+        .btn-row { display: flex; gap: 8px; justify-content: flex-end; }
+        .error-text { color: var(--danger); font: 12px var(--mono); margin: 8px 0 0; }
+
+        /* Files */
+        .files-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 16px;
+            border-top: 1px solid var(--line-strong);
+            border-bottom: 1px solid var(--line);
+        }
+        .files {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+        }
+        .files > * { box-shadow: 1px 0 0 var(--line), 0 1px 0 var(--line); }
+        .file { position: relative; background: var(--paper); padding: 10px; min-width: 0; }
+        .thumb {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            border: 1px solid var(--line);
+            background: var(--bg);
+            overflow: hidden;
+            color: var(--ink-2);
+        }
+        button.thumb:hover { border-color: var(--line-strong); }
+        .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.25s ease; }
+        .file:hover .thumb img { transform: scale(1.03); }
+        .ext { font: 500 18px var(--mono); letter-spacing: 0.04em; color: var(--ink-2); }
+        .play {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: 1px solid var(--line-strong);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--ink);
+        }
+        .file.playing .play { background: var(--signal); border-color: var(--signal); color: var(--signal-ink); }
+        .audio-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--line); }
+        .audio-bar i { display: block; height: 100%; background: var(--signal); }
+        .thumb.audio { position: relative; }
+        .meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; }
+        .meta a {
+            font: 12px/1.4 var(--mono);
+            color: var(--ink);
+            text-decoration: none;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .meta a:hover { text-decoration: underline; text-underline-offset: 3px; }
+        .meta .label { flex: none; }
+        .del {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            height: 26px;
+            padding: 0 6px;
+            background: var(--paper);
+            border: 1px solid var(--line-strong);
+            color: var(--ink-2);
+            opacity: 0;
+            transition: opacity 0.12s;
+        }
+        .file:hover .del, .file:focus-within .del, .del.confirm { opacity: 1; }
+        .del:hover, .del.confirm { color: var(--danger); border-color: var(--danger); }
+        .del.confirm { font: 500 10.5px var(--mono); letter-spacing: 0.06em; }
+        @media (hover: none) { .del { opacity: 1; } }
+        .add {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 150px;
+            background: var(--paper);
+            color: var(--ink-2);
+            outline: 1px dashed var(--line-strong);
+            outline-offset: -10px;
+        }
+        .add:hover { color: var(--signal); outline-color: var(--signal); }
+
+        /* Status bar */
+        .status {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            gap: 12px;
+            padding: 7px 16px;
+            border-top: 1px solid var(--line-strong);
+        }
+        .status > :last-child { text-align: right; }
+        .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); margin-right: 7px; vertical-align: 1px; }
+        .dot.busy { background: var(--signal); animation: pulse 1s ease-in-out infinite; }
+        .dot.err { background: var(--danger); }
+        @keyframes pulse { 50% { opacity: 0.3; } }
+        .progress { display: flex; align-items: center; gap: 8px; }
+        .progress .bar { width: 120px; height: 2px; background: var(--line); }
+        .progress .bar i { display: block; height: 100%; background: var(--signal); transition: width 0.15s; }
+
+        /* Drop overlay */
+        .drop {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: color-mix(in srgb, var(--bg) 82%, transparent);
+            pointer-events: none;
+        }
+        .drop div {
+            width: min(520px, calc(100% - 32px));
+            padding: 56px 24px;
+            text-align: center;
+            border: 1.5px dashed var(--signal);
+            background: var(--signal-wash);
+            color: var(--signal);
+            font: 500 12px var(--mono);
+            letter-spacing: 0.1em;
+        }
+
+        /* Dialogs */
+        dialog { padding: 0; border: 1px solid var(--line-strong); background: var(--paper); color: var(--ink); }
+        dialog::backdrop { background: rgba(10, 10, 9, 0.45); }
+        .pw-dialog { width: min(380px, calc(100% - 32px)); }
+        .pw-dialog > * { padding: 14px 16px; }
+        .pw-dialog > * + * { border-top: 1px solid var(--line); }
+        .pw-dialog h2 { margin: 4px 0 0; font: 28px/1.1 var(--serif); font-weight: 400; }
+        .lightbox {
+            width: 100vw;
+            height: 100vh;
+            max-width: none;
+            max-height: none;
+            border: 0;
+            background: #0b0b0a;
+            color: #ecebe6;
+        }
+        .lightbox::backdrop { background: #0b0b0a; }
+        .lb-stage { position: absolute; inset: 52px 0 0; display: flex; align-items: center; justify-content: center; overflow: auto; }
+        .lb-stage img { max-width: 100%; max-height: 100%; object-fit: contain; cursor: zoom-in; transition: transform 0.25s ease; }
+        .lb-stage img.zoomed { transform: scale(2.2); cursor: zoom-out; }
+        .lb-bar {
+            position: absolute;
+            inset: 0 0 auto;
+            height: 52px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0 12px 0 16px;
+            border-bottom: 1px solid #2a2a27;
+            font: 12px var(--mono);
+            color: #a3a199;
+        }
+        .lb-bar .name { color: #ecebe6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .lb-bar .spacer { flex: 1; }
+        .lb-bar .icon-btn { color: #ecebe6; }
+        .lb-bar .icon-btn:hover { border-color: #43423e; }
+        .lb-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border: 1px solid #43423e; background: rgba(11, 11, 10, 0.6); color: #ecebe6; display: flex; align-items: center; justify-content: center; }
+        .lb-nav:hover { border-color: #ecebe6; }
+        .lb-nav.prev { left: 16px; } .lb-nav.next { right: 16px; }
+
+        .toast {
+            position: fixed;
+            left: 50%;
+            bottom: 24px;
+            transform: translateX(-50%);
+            z-index: 60;
+            padding: 9px 14px;
+            background: var(--ink);
+            color: var(--paper);
+            font: 500 11px var(--mono);
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+        .toast.err { background: var(--danger); color: #fff; }
+
+        @media (max-width: 880px) {
+            body { padding: 16px; }
+            .head { grid-template-columns: minmax(0, 1fr); }
+            .head > div { border-right: 0; border-bottom: 1px solid var(--line); }
+            .head > div:last-child { border-bottom: 0; }
+            .ctrl-cell { justify-content: space-between; }
+            .title-input { font-size: 30px; }
+            .work { grid-template-columns: minmax(0, 1fr); }
+            .pane + .pane { border-left: 0; border-top: 1px solid var(--line-strong); }
+            .pane { padding: 18px 16px 22px; }
+            .editor { min-height: 30vh; }
+            .files { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .status { grid-template-columns: 1fr auto; }
+            .status > :last-child { display: none; }
         }
     </style>
 </head>
 
 <body>
-<div id="q-app">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+        <symbol id="i-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 3V2.5h-8v8H3"/></symbol>
+        <symbol id="i-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8.5l3 3 7-7"/></symbol>
+        <symbol id="i-lock" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3" y="7" width="10" height="7"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></symbol>
+        <symbol id="i-unlock" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3" y="7" width="10" height="7"/><path d="M5.5 7V5a2.5 2.5 0 014.8-1"/></symbol>
+        <symbol id="i-sun" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6L13 13M3 13l1.4-1.4M11.6 4.4L13 3"/></symbol>
+        <symbol id="i-moon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M13.5 9.5A5.5 5.5 0 116.5 2.5a4.5 4.5 0 007 7z"/></symbol>
+        <symbol id="i-auto" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11A5.5 5.5 0 008 2.5z" fill="currentColor"/></symbol>
+        <symbol id="i-play" viewBox="0 0 16 16" fill="currentColor"><path d="M5 3.2v9.6L12.5 8z"/></symbol>
+        <symbol id="i-pause" viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 3h2.5v10H4.5zM9 3h2.5v10H9z"/></symbol>
+        <symbol id="i-trash" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2.5 4.5h11M6 4.5V2.5h4v2M4 4.5l.7 9h6.6l.7-9"/></symbol>
+        <symbol id="i-close" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/></symbol>
+        <symbol id="i-left" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M10 3L5 8l5 5"/></symbol>
+        <symbol id="i-right" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 3l5 5-5 5"/></symbol>
+        <symbol id="i-plus" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M8 2v12M2 8h12"/></symbol>
+        <symbol id="i-tick" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1"><path d="M5.5 0v11M0 5.5h11"/></symbol>
+    </defs>
+</svg>
 
-    <q-layout view="hHh lpR fFf">
+<div id="app" v-cloak>
+    <main class="frame"
+          @dragenter.prevent="onDragEnter"
+          @dragover.prevent
+          @dragleave="onDragLeave"
+          @drop.prevent="onDrop">
+        <svg class="tick tl"><use href="#i-tick"/></svg>
+        <svg class="tick tr"><use href="#i-tick"/></svg>
+        <svg class="tick bl"><use href="#i-tick"/></svg>
+        <svg class="tick br"><use href="#i-tick"/></svg>
 
-        <q-header elevated class="bg-primary text-white">
-            <q-toolbar>
-                <q-toolbar-title>
-                    <div class="cursor-pointer">
-                        <span v-text="name"></span>
-                        <q-popup-edit v-model="newName" auto-save v-slot="scope">
-                            <q-input v-model="scope.value" dense autofocus auto-save @keyup.enter="scope.set"/>
-                        </q-popup-edit>
-                        <q-tooltip>Edit title</q-tooltip>
-                    </div>
-                    {#                    <span v-model="name"></span>#}
-                </q-toolbar-title>
-                <q-select borderless
-                          v-model="mode"
-                          :options="mode_options"
-                          label="Mode"
-                          label-color="white"
-                          :dark="true"
-                          :map-options="true"
-                          :emit-value="true"
-                          :dense="true"
-                          :options-dense="true"
-                          style="min-width: 150px"
-                          @update:model-value="handleChange()"></q-select>
-                <q-select borderless
-                          v-model="darkMode"
-                          :options="darkModeOptions"
-                          label="Dark mode"
-                          label-color="white"
-                          :dark="true"
-                          :map-options="true"
-                          :emit-value="true"
-                          :dense="true"
-                          :options-dense="true"
-                          class="q-ml-md"
-                          style="min-width: 100px"></q-select>
-                <q-btn flat round dense icon="upload" @click="uploadVisible=!uploadVisible">
-                    <q-tooltip>Upload</q-tooltip>
-                </q-btn>
-                <q-btn flat round dense icon="lock" @click="passwordDialog=true">
-                    <q-tooltip>Set password</q-tooltip>
-                </q-btn>
-            </q-toolbar>
-            {% if item.shortcut_expires > now %}
-                {{ short_link_expires }}
-                <q-toolbar v-if="in_db && short_link_expires !== null">
-                    <p class="text-body2">
-                        <a style="color: white !important;" href="/{{ item.shortcut }}/">shortterm.store/{{ item.shortcut }}</a>
-                        &nbsp;<em>Short link expires in {% verbatim %}{{ short_link_expires }}{% endverbatim %}</em>
-                    </p>
-                </q-toolbar>
-            {% endif %}
-        </q-header>
-
-        <q-page-container>
-
-            <q-carousel
-                    swipeable
-                    animated
-                    arrows
-                    thumbnails
-                    v-model="slide"
-                    v-model:fullscreen="fullscreen"
-                    infinite
-                    v-if="images.length > 0 && fullscreen"
-            >
-                <q-carousel-slide
-                        v-for="(image, index) in images"
-                        :key="index"
-                        :name="image.url"
-                        :img-src="image.url"
-                        class="no-padding main-slide-image"
-                >
-                    <q-img
-                            :src="image.url"
-                            fit="contain"
-                            height="100%"
-                            :class="zoomed ? 'zoomed-img' : 'unzoomed-img'"
-                            @click="zoomed = !zoomed"
-                    ></q-img>
-                </q-carousel-slide>
-
-                <template v-slot:control>
-                    <q-carousel-control
-                            position="top-right"
-                            :offset="[18, 18]"
-                    >
-                        <q-btn
-                                push round dense color="white" text-color="primary"
-                                :icon="fullscreen ? 'close' : 'fullscreen'"
-                                @click="fullscreen = !fullscreen"
-                        ></q-btn>
-                    </q-carousel-control>
-                </template>
-            </q-carousel>
-
-            <div v-show="uploadVisible" class="uploader-overlay" @click.self="uploadVisible=false">
-                <q-card style="min-width: 350px">
-                    <q-card-section class="row items-center q-pb-none">
-                        <div class="text-h6">Upload Files</div>
-                        <q-space></q-space>
-                        <q-btn icon="close" flat round dense @click="uploadVisible=false"></q-btn>
-                    </q-card-section>
-                    <q-card-section class="q-pt-none">
-                        <q-uploader
-                                ref="uploader"
-                                :url="getUploadUrl"
-                                :form-fields="getUploadFormFields"
-                                field-name="file"
-                                @added="fetchUploadParams"
-                                @uploaded="handleUploaded"
-                                @finish="handleUploadFinish"
-                                @start="handleUploadStart"
-                                @uploading="handleUploading"
-                                label="Upload"
-                                multiple
-                                style="max-width: 300px"
-                        ></q-uploader>
-                    </q-card-section>
-                </q-card>
+        <header class="head">
+            <div class="title-cell">
+                <label class="label" for="title" v-text="'Store / ' + storeLabel"></label>
+                <input id="title" class="title-input" v-model="name" placeholder="Untitled store"
+                       :readonly="locked" autocomplete="off" spellcheck="false"
+                       @focus="editingTitle = true" @blur="saveTitle" @keydown.enter="$event.target.blur()">
             </div>
 
-            <q-page-sticky position="bottom-right" :offset="[18, 18]" v-if="isUploading && !uploadVisible" style="z-index: 1500">
-                <q-btn fab color="primary" @click="uploadVisible = true">
-                    <q-circular-progress
-                            show-value
-                            font-size="10px"
-                            :value="uploadProgress"
-                            size="56px"
-                            :thickness="0.1"
-                            color="white"
-                            center-color="primary"
-                            class="absolute-full"
-                    >
-                        {% verbatim %}{{ Math.round(uploadProgress) }}%{% endverbatim %}
-                    </q-circular-progress>
-                    <q-tooltip>Uploading... Click to open</q-tooltip>
-                </q-btn>
-            </q-page-sticky>
-
-            <div class="fit row wrap justify-start items-start content-start" v-if="!locked">
-                <div class="col-md col-xs-12" v-if="mode=='simple' || mode=='editor'">
-                    <div class="q-pa-md">
-                        <q-input
-                                v-model="text"
-                                autogrow
-                                outlined
-                                type="textarea"
-                                v-on:keydown="handleChange()"
-                                v-on:keyup="handleKeyup"
-                                @paste="handlePaste"
-                        ></q-input>
-                    </div>
+            <div class="link-cell">
+                <div class="link-row">
+                    <a class="link" :href="shareUrl" @click.prevent="copyLink">
+                        <template v-if="countdown"><span v-text="host + '/'"></span><b v-text="shortcut"></b></template>
+                        <span v-else v-text="fullUrl"></span>
+                    </a>
+                    <span v-if="countdown" class="countdown" title="Short link expires" v-text="countdown"></span>
+                    <button class="icon-btn copy-btn" :class="{on: copied}" @click="copyLink" :aria-label="copied ? 'Copied' : 'Copy link'">
+                        <svg class="icon"><use :href="copied ? '#i-check' : '#i-copy'"/></svg>
+                    </button>
                 </div>
-
-                <div class="col-md col-xs-12" v-if="mode=='editor' || mode=='reader'">
-                     <div class="q-pa-md">
-                        <q-card flat bordered>
-                            <q-card-section>
-                                <div class="markdown-container" v-html="markdown_parse(text)"></div>
-                            </q-card-section>
-                        </q-card>
-                    </div>
-                </div>
+                <div class="label" v-text="linkCaption"></div>
             </div>
 
-            <div v-if="!locked && uploads.length > 0">
-                <div class="q-pa-md">
-                    <q-table
-                            flat
-                            bordered
-                            title="Files"
-                            :rows="uploads"
-                            :columns="columns"
-                            row-key="guid"
-                            :pagination="{rowsPerPage: 0}"
-                            hide-pagination
-                    >
-                        <template v-slot:body-cell-preview="props">
-                            <q-td :props="props">
-                                <q-img
-                                        v-if="props.row.is_image"
-                                        :src="props.row.url"
-                                        style="width: 50px; height: 50px;"
-                                        fit="scale-down"
-                                        @click="fullscreen=true; slide=props.row.url"
-                                        class="cursor-pointer"
-                                ></q-img>
-                                <audio v-else-if="props.row.is_audio" :src="props.row.url" controls style="height: 30px; width: 200px; vertical-align: middle;" preload="auto" @ended="playNextAudio($event)" @play="preloadNextAudio($event)"></audio>
-                                <q-icon v-else name="file_present" size="sm"></q-icon>
-                            </q-td>
-                        </template>
-
-                        <template v-slot:body-cell-filename="props">
-                            <q-td :props="props">
-                                <a :href="props.row.url" v-text="props.row.filename"></a>
-                            </q-td>
-                        </template>
-
-                        <template v-slot:body-cell-modified="props">
-                            <q-td :props="props">
-                                {% verbatim %}{{ formatDate(props.row.modified) }}{% endverbatim %}
-                            </q-td>
-                        </template>
-
-                        <template v-slot:body-cell-actions="props">
-                            <q-td :props="props">
-                                <q-btn color="grey-7" round flat icon="more_vert">
-                                    <q-menu cover auto-close>
-                                        <q-list>
-                                            <q-item clickable @click="deleteUpload(props.row.guid)">
-                                                <q-item-section>Delete</q-item-section>
-                                            </q-item>
-                                        </q-list>
-                                    </q-menu>
-                                </q-btn>
-                            </q-td>
-                        </template>
-                    </q-table>
+            <div class="ctrl-cell">
+                <div class="seg" role="group" aria-label="Mode">
+                    <button v-for="m in modes" :key="m.value" :aria-pressed="mode === m.value" :disabled="locked"
+                            @click="setMode(m.value)" :title="m.title" v-text="m.label"></button>
+                </div>
+                <div class="ctrl-icons">
+                    <button class="icon-btn" :class="{on: hasPassword}" @click="openPasswordDialog" :disabled="locked"
+                            :aria-label="hasPassword ? 'Change password' : 'Set password'" :title="hasPassword ? 'Password set' : 'No password'">
+                        <svg class="icon"><use :href="hasPassword ? '#i-lock' : '#i-unlock'"/></svg>
+                    </button>
+                    <button class="icon-btn" @click="cycleTheme" :aria-label="'Theme: ' + themeLabel" :title="'Theme: ' + themeLabel">
+                        <svg class="icon"><use :href="themeIcon"/></svg>
+                    </button>
                 </div>
             </div>
+        </header>
 
-            <q-dialog v-model="passwordDialog" persistent>
-                <q-card style="min-width: 350px">
-                    <q-card-section>
-                        <div class="text-h6">Set password</div>
-                    </q-card-section>
-                    <q-card-section class="q-pt-none">
-                        <q-input dense v-model="newPassword" autofocus @keyup.enter="setPassword" type="password" label="New password"/>
-                    </q-card-section>
-                    <q-card-actions align="right">
-                        <q-btn flat label="Cancel" v-close-popup></q-btn>
-                        <q-btn flat label="Set" @click="setPassword" v-close-popup></q-btn>
-                    </q-card-actions>
-                </q-card>
-            </q-dialog>
+        <section v-if="locked" class="work single">
+            <div class="locked">
+                <form class="unlock" @submit.prevent="verifyPassword">
+                    <div><span class="label">Locked</span><h2>Enter the password</h2></div>
+                    <div>
+                        <label class="sr-only" for="unlock-pw">Password</label>
+                        <input id="unlock-pw" class="field" type="password" v-model="inputPassword" autofocus autocomplete="current-password" @input="unlockError = ''">
+                        <p v-if="unlockError" class="error-text" v-text="unlockError"></p>
+                    </div>
+                    <div class="btn-row"><button class="btn primary" type="submit">Unlock</button></div>
+                </form>
+            </div>
+        </section>
 
-            <q-dialog v-model="promptPasswordDialog" persistent>
-                <q-card style="min-width: 350px">
-                    <q-card-section>
-                        <div class="text-h6">Password protected</div>
-                    </q-card-section>
-                    <q-card-section class="q-pt-none">
-                        <q-input dense v-model="inputPassword" autofocus @keyup.enter="verifyPassword" type="password" label="Enter password"/>
-                    </q-card-section>
-                    <q-card-actions align="right">
-                        <q-btn flat label="Unlock" @click="verifyPassword"></q-btn>
-                    </q-card-actions>
-                </q-card>
-            </q-dialog>
+        <section v-else class="work" :class="{single: mode !== 'editor'}">
+            <div class="pane" v-if="mode === 'simple' || mode === 'editor'">
+                <span class="label pane-label" v-if="mode === 'editor'">Source</span>
+                <label class="sr-only" for="editor">Text</label>
+                <textarea id="editor" ref="editor" class="editor" v-model="text" spellcheck="false"
+                          placeholder="Start typing. Everything saves as you go."
+                          @input="onTextInput" @keyup="handleKeyup" @paste="handlePaste"></textarea>
+                <div class="hints label" v-if="!text">
+                    <span><kbd>=</kbd> after a sum calculates it</span>
+                    <span><kbd>⌘V</kbd> an image to upload it</span>
+                    <span>Drop files anywhere</span>
+                </div>
+            </div>
+            <div class="pane" v-if="mode === 'editor' || mode === 'reader'" @click="onPreviewClick">
+                <span class="label pane-label" v-if="mode === 'editor'">Preview</span>
+                <div v-if="text" class="md" v-html="renderedMarkdown"></div>
+                <div v-else class="empty-read">Nothing written yet.</div>
+            </div>
+        </section>
 
-        </q-page-container>
+        <template v-if="!locked">
+            <div class="files-head">
+                <span class="label">Files</span>
+                <span class="label" v-text="uploads.length + (uploads.length === 1 ? ' file' : ' files')"></span>
+            </div>
+            <div class="files">
+                <div v-for="u in uploads" :key="u.guid" class="file" :class="{playing: audio.guid === u.guid && audio.playing}">
+                    <button v-if="u.is_image" class="thumb" @click="openLightbox(u.url)" :aria-label="'View ' + u.filename">
+                        <img :src="u.url" alt="" loading="lazy">
+                    </button>
+                    <div v-else-if="u.is_audio" class="thumb audio">
+                        <button class="play" @click="toggleAudio(u)" :aria-label="(audio.guid === u.guid && audio.playing ? 'Pause ' : 'Play ') + u.filename">
+                            <svg class="icon"><use :href="audio.guid === u.guid && audio.playing ? '#i-pause' : '#i-play'"/></svg>
+                        </button>
+                        <div class="audio-bar" v-if="audio.guid === u.guid"><i :style="{width: audio.progress + '%'}"></i></div>
+                    </div>
+                    <a v-else class="thumb" :href="u.url" :aria-label="'Open ' + u.filename">
+                        <span class="ext" v-text="extension(u.filename)"></span>
+                    </a>
+                    <div class="meta">
+                        <a :href="u.url" v-text="u.filename" :title="u.filename"></a>
+                        <span class="label" v-text="relativeTime(u.modified)" :title="formatDate(u.modified)"></span>
+                    </div>
+                    <button class="del" :class="{confirm: confirmDelete === u.guid}" @click="deleteUpload(u)"
+                            :aria-label="confirmDelete === u.guid ? 'Confirm delete ' + u.filename : 'Delete ' + u.filename">
+                        <svg class="icon"><use href="#i-trash"/></svg>
+                        <span v-if="confirmDelete === u.guid">DELETE?</span>
+                    </button>
+                </div>
+                <button class="add" @click="$refs.fileInput.click()">
+                    <svg class="icon"><use href="#i-plus"/></svg>
+                    <span class="label" style="color: inherit">Add or drop files</span>
+                </button>
+            </div>
+            <input ref="fileInput" type="file" multiple hidden @change="onFilesPicked">
+        </template>
 
-    </q-layout>
+        <footer class="status label">
+            <span>
+                <i class="dot" :class="{busy: saveState === 'saving' || saveState === 'pending', err: saveState === 'error'}"></i>
+                <span v-text="saveLabel"></span>
+            </span>
+            <span v-if="upload.active" class="progress">
+                <span v-text="'Uploading ' + (upload.done + 1) + '/' + upload.count"></span>
+                <span class="bar"><i :style="{width: uploadPercent + '%'}"></i></span>
+                <span v-text="uploadPercent + '%'"></span>
+            </span>
+            <span v-else v-text="syncNote"></span>
+            <span>Empty stores are cleared daily</span>
+        </footer>
+    </main>
 
+    <div v-if="dragging" class="drop"><div>DROP TO UPLOAD</div></div>
+
+    <dialog ref="pwDialog" class="pw-dialog" @close="newPassword = ''">
+        <form method="dialog" @submit.prevent="setPassword(newPassword)">
+            <div><span class="label" v-text="hasPassword ? 'Password set' : 'No password'"></span><h2 v-text="hasPassword ? 'Change password' : 'Set a password'"></h2></div>
+            <div>
+                <label class="sr-only" for="new-pw">New password</label>
+                <input id="new-pw" class="field" type="password" v-model="newPassword" placeholder="New password" autocomplete="new-password">
+            </div>
+            <div class="btn-row">
+                <button v-if="hasPassword" class="btn danger" type="button" @click="setPassword('')" style="margin-right: auto">Remove</button>
+                <button class="btn" type="button" @click="$refs.pwDialog.close()">Cancel</button>
+                <button class="btn primary" type="submit">Set</button>
+            </div>
+        </form>
+    </dialog>
+
+    <dialog ref="lightbox" class="lightbox" @close="lightbox.open = false" @keydown.left="stepLightbox(-1)" @keydown.right="stepLightbox(1)">
+        <template v-if="lightbox.open">
+            <div class="lb-bar">
+                <span v-if="images.length > 1 && lightboxIndex !== -1" v-text="(lightboxIndex + 1) + ' / ' + images.length"></span>
+                <span class="name" v-text="lightboxName"></span>
+                <span class="spacer"></span>
+                <a class="icon-btn" :href="lightbox.url" target="_blank" rel="noopener" aria-label="Open original"><svg class="icon"><use href="#i-right"/></svg></a>
+                <button class="icon-btn" @click="$refs.lightbox.close()" aria-label="Close" autofocus><svg class="icon"><use href="#i-close"/></svg></button>
+            </div>
+            <div class="lb-stage">
+                <img :src="lightbox.url" :class="{zoomed: lightbox.zoomed}" @click="lightbox.zoomed = !lightbox.zoomed" alt="">
+            </div>
+            <template v-if="images.length > 1 && lightboxIndex !== -1">
+                <button class="lb-nav prev" @click="stepLightbox(-1)" aria-label="Previous image"><svg class="icon"><use href="#i-left"/></svg></button>
+                <button class="lb-nav next" @click="stepLightbox(1)" aria-label="Next image"><svg class="icon"><use href="#i-right"/></svg></button>
+            </template>
+        </template>
+    </dialog>
+
+    <div v-if="toast.text" class="toast" :class="{err: toast.error}" role="status" v-text="toast.text"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/vue@3.4.13/dist/vue.global.prod.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/quasar@2.14.2/dist/quasar.umd.prod.js"></script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.0.19/marked.min.js"
         integrity="sha512-CPGsmz+2yVpGnri/iBEoPVrRHiPaHQ3gzuSCfmfnZ2KKF/GKMvW8S7uVFRbZD0uOVMaNYY4HCATeCShxZWgp6w=="
@@ -378,528 +681,546 @@
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
 <script>
+    const ITEM_GUID = '{{ item.guid }}';
+    const ITEM_PATH = '{{ request.path }}';
+    const CSRF_TOKEN = '{{ csrf_token }}';
+    const PASSWORD_KEY = 'password-' + ITEM_GUID;
+
+    function storageGet(key) {
+        try { return localStorage.getItem(key); } catch (e) { return null; }
+    }
+    function storageSet(key, value) {
+        try { localStorage.setItem(key, value); } catch (e) {}
+    }
+    function storageRemove(key) {
+        try { localStorage.removeItem(key); } catch (e) {}
+    }
+
+    function itemHeaders(extra) {
+        const headers = Object.assign({'X-CSRFToken': CSRF_TOKEN}, extra || {});
+        const storedPassword = storageGet(PASSWORD_KEY);
+        if (storedPassword) {
+            headers['X-Item-Password'] = storedPassword;
+        }
+        return headers;
+    }
+
+    function postJson(url, data) {
+        return fetch(url, {
+            method: 'POST',
+            headers: itemHeaders({'Content-Type': 'application/json'}),
+            body: JSON.stringify(data)
+        });
+    }
+
+    // XHR rather than fetch: fetch can't report upload progress.
+    function postWithProgress(url, formData, onProgress) {
+        return new Promise(function (resolve, reject) {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', url);
+            xhr.upload.onprogress = function (event) {
+                if (event.lengthComputable) onProgress(event.loaded);
+            };
+            xhr.onload = function () {
+                if (xhr.status >= 200 && xhr.status < 300) resolve();
+                else reject(new Error('Upload failed (' + xhr.status + ')'));
+            };
+            xhr.onerror = function () { reject(new Error('Upload failed')); };
+            xhr.send(formData);
+        });
+    }
+
     const app = Vue.createApp({
-        setup() {
-        },
+        delimiters: ['[[', ']]'],
         data() {
             return {
-                name: 'Store {{ item.guid }}',
-                newName: '',
+                name: '',
+                displayName: '',
                 text: '',
-                uploads: [],
-                uploadVisible: false,
-                isUploading: false,
-                uploadProgress: 0,
-                progressInterval: null,
-                updateInterval: null,
-                changeTimeout: null,
-                uploadParamsCache: {},
-                dataLoaded: false,
-                in_db: false,
-                locked: false,
-                passwordDialog: false,
-                promptPasswordDialog: false,
-                newPassword: '',
-                inputPassword: '',
-                short_link_expires: null,
-                password_token: '',
-                preventUpdates: false,
-                mode_options: [
-                    {label: 'Simple', value: 'simple'},
-                    {label: 'Markdown Editor', value: 'editor'},
-                    {label: 'Markdown Reader', value: 'reader'}
-                ],
                 mode: 'simple',
-                darkMode: localStorage.getItem('darkMode') || 'auto',
-                darkModeOptions: [
-                    {label: 'On', value: 'on'},
-                    {label: 'Off', value: 'off'},
-                    {label: 'System', value: 'auto'}
+                modes: [
+                    {label: 'TXT', value: 'simple', title: 'Plain text'},
+                    {label: 'SPLIT', value: 'editor', title: 'Markdown with preview'},
+                    {label: 'READ', value: 'reader', title: 'Rendered markdown'}
                 ],
-                slide: null,
-                fullscreen: false,
-                zoomed: false,
-                scrollPosition: 0,
-                columns: [
-                    {name: 'preview', label: 'Preview', field: 'url', align: 'left', style: 'width: 60px'},
-                    {name: 'filename', label: 'Filename', field: 'filename', align: 'left', sortable: true, style: 'max-width: 300px; word-break: break-all;'},
-                    {name: 'modified', label: 'Modified', field: 'modified', align: 'left', sortable: true},
-                    {name: 'actions', label: 'Actions', field: 'guid', align: 'right'}
-                ]
-            }
+                uploads: [],
+                dataLoaded: false,
+                inDb: false,
+                locked: false,
+                hasPassword: false,
+                shortcut: '',
+                shortLinkExpiresAt: null,
+                passwordToken: '',
+                inputPassword: '',
+                unlockError: '',
+                newPassword: '',
+                editingTitle: false,
+                preventUpdates: false,
+                changeTimeout: null,
+                editRevision: 0,
+                pendingSaves: 0,
+                saveState: 'saved',
+                syncNote: '',
+                syncNoteTimeout: null,
+                clock: Date.now(),
+                copied: false,
+                theme: storageGet('darkMode') || 'auto',
+                upload: {active: false, count: 0, done: 0, loaded: 0, total: 0},
+                dragDepth: 0,
+                lightbox: {open: false, url: null, zoomed: false},
+                audio: {guid: null, playing: false, progress: 0},
+                confirmDelete: null,
+                confirmDeleteTimeout: null,
+                toast: {text: '', error: false},
+                toastTimeout: null
+            };
         },
         created() {
-            let that = this;
-            this.$q.dark.set(this.darkMode === 'on' ? true : (this.darkMode === 'off' ? false : 'auto'));
+            this.player = new Audio();
+            this.player.preload = 'auto';
+            this.player.addEventListener('timeupdate', () => {
+                if (this.player.duration) this.audio.progress = this.player.currentTime / this.player.duration * 100;
+            });
+            this.player.addEventListener('play', () => { this.audio.playing = true; });
+            this.player.addEventListener('pause', () => { this.audio.playing = false; });
+            this.player.addEventListener('ended', () => this.playNextAudio());
+
             this.update();
-            this.setUpdateInterval();
-            window.addEventListener('keydown', function(event){
-                if (event.code === 'Escape') {
-                    that.fullscreen = false;
-                } else if (event.code === 'ArrowLeft') {
-                    if (that.images.length === 0)
-                        return;
-                    let image_urls = that.images.map(i => i.url);
-                    let image_pos = image_urls.indexOf(that.slide);
-                    image_pos = (image_pos - 1 + image_urls.length) % image_urls.length;
-                    that.slide = image_urls[image_pos];
-                } else if (event.code === 'ArrowRight') {
-                    if (that.images.length === 0)
-                        return;
-                    let image_urls = that.images.map(i => i.url);
-                    let image_pos = image_urls.indexOf(that.slide);
-                    image_pos = (image_pos + 1) % image_urls.length;
-                    that.slide = image_urls[image_pos];
+            setInterval(() => this.update(), 3000);
+            setInterval(() => { this.clock = Date.now(); }, 1000);
+            window.addEventListener('beforeunload', (event) => {
+                if (this.saveState === 'pending' || this.saveState === 'saving' || this.upload.active) {
+                    event.preventDefault();
+                    event.returnValue = '';
                 }
             });
         },
-        watch: {
-            slide(val) {
-                this.zoomed = false;
+        computed: {
+            storeLabel() {
+                return ITEM_GUID.slice(0, 4).toUpperCase();
             },
-            uploadVisible(val) {
-                if (val) {
-                    this.scrollPosition = window.scrollY;
-                    document.body.style.overflow = 'hidden';
-                } else {
-                    document.body.style.overflow = '';
-                    this.$nextTick(() => {
-                        window.scrollTo(0, this.scrollPosition);
-                    });
-                }
+            host() {
+                return window.location.host;
             },
-            newName(val) {
-                if (!this.dataLoaded)
-                    return;
-                let that = this;
-                that.preventUpdates = true;
-                this.submitData({name: val}).then(function (response) {
-                    that.update();
-                }).finally(function () {
-                    that.preventUpdates = false;
-                });
+            fullUrl() {
+                return window.location.host + ITEM_PATH;
             },
-            darkMode(val) {
-                this.$q.dark.set(val === 'on' ? true : (val === 'off' ? false : 'auto'));
-                localStorage.setItem('darkMode', val);
+            countdown() {
+                if (!this.inDb || !this.shortcut || !this.shortLinkExpiresAt) return null;
+                const remaining = Math.floor((new Date(this.shortLinkExpiresAt).getTime() - this.clock) / 1000);
+                if (remaining <= 0) return null;
+                const minutes = Math.floor(remaining / 60);
+                const seconds = remaining % 60;
+                return String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+            },
+            shareUrl() {
+                return this.countdown ? '/' + this.shortcut + '/' : ITEM_PATH;
+            },
+            linkCaption() {
+                if (this.copied) return 'Copied to clipboard';
+                if (this.locked) return 'Password protected';
+                if (this.countdown) return 'Short link runs out, the full link stays';
+                if (!this.inDb) return 'Start typing to get a short link';
+                return 'Anyone with this link can open the store';
+            },
+            themeLabel() {
+                return {auto: 'system', on: 'dark', off: 'light'}[this.theme] || 'system';
+            },
+            themeIcon() {
+                return {auto: '#i-auto', on: '#i-moon', off: '#i-sun'}[this.theme] || '#i-auto';
+            },
+            saveLabel() {
+                if (!this.dataLoaded) return 'Loading…';
+                if (this.locked) return 'Locked';
+                return {
+                    pending: 'Editing…',
+                    saving: 'Saving…',
+                    error: 'Not saved, retrying',
+                    saved: this.inDb ? 'Saved' : 'Empty'
+                }[this.saveState];
+            },
+            uploadPercent() {
+                if (!this.upload.total) return 0;
+                return Math.min(100, Math.round(this.upload.loaded / this.upload.total * 100));
+            },
+            renderedMarkdown() {
+                return DOMPurify.sanitize(marked.parse(this.text));
+            },
+            images() {
+                return this.uploads.filter(u => u.is_image);
+            },
+            lightboxIndex() {
+                return this.images.findIndex(i => i.url === this.lightbox.url);
+            },
+            lightboxName() {
+                const image = this.images[this.lightboxIndex];
+                return image ? image.filename : '';
+            },
+            dragging() {
+                return this.dragDepth > 0;
             }
         },
-        computed: {
-            images () {
-                return this.uploads.filter(u => u.is_image);
+        watch: {
+            text() {
+                this.$nextTick(this.resizeEditor);
+            },
+            mode() {
+                this.$nextTick(this.resizeEditor);
+            },
+            theme(value) {
+                if (value === 'on') document.documentElement.setAttribute('data-theme', 'dark');
+                else if (value === 'off') document.documentElement.setAttribute('data-theme', 'light');
+                else document.documentElement.removeAttribute('data-theme');
+                storageSet('darkMode', value);
             }
         },
         methods: {
-            setUpdateInterval() {
-                let that = this;
-                if (that.updateInterval !== null)
-                    clearInterval(that.updateInterval);
-                that.updateInterval = setInterval(function () {
-                    that.update();
-                }, 3000);
-            },
             update() {
-                if (this.preventUpdates)
-                    return;
-
-                let that = this;
-                const headers = {};
-                const storedPassword = localStorage.getItem('password-{{ item.guid }}');
-                if (storedPassword) {
-                    headers['X-Item-Password'] = storedPassword;
-                }
-
-                fetch('{{ request.path }}?json', {headers: headers}).then(function (response) {
-                    if (response.status === 403) {
-                        that.locked = true;
-                        that.promptPasswordDialog = true;
-                        return;
-                    }
-                    response.json().then(function (jsonResponse) {
-                        if (that.preventUpdates)
+                if (this.preventUpdates) return;
+                fetch(ITEM_PATH + '?json', {headers: itemHeaders()}).then((response) => {
+                    return response.json().then((data) => {
+                        if (this.preventUpdates) return;
+                        this.dataLoaded = true;
+                        if (response.status === 403) {
+                            this.locked = true;
+                            this.hasPassword = true;
+                            this.displayName = data.display_name;
+                            this.name = data.display_name;
+                            document.title = data.display_name;
                             return;
-
-                        that.dataLoaded = true;
-                        // console.log(jsonResponse);
-                        that.text = jsonResponse.text;
-                        that.name = jsonResponse.display_name;
-                        that.mode = jsonResponse.mode;
-                        that.newName = jsonResponse.name;
-                        that.uploads = jsonResponse.uploads.map(function(upload) {
-                            if (jsonResponse.password_token) {
-                                upload.url += (upload.url.indexOf('?') === -1 ? '?' : '&') + 't=' + encodeURIComponent(jsonResponse.password_token);
-                            }
-                            return upload;
-                        });
-                        let images = that.uploads.filter(u => u.is_image);
-                        let image_urls = images.map(i => i.url);
-                        if (!that.slide || image_urls.indexOf(that.slide) === -1)
-                            that.slide = (images.length > 0 ? images[0].url : null);
-                        that.in_db = jsonResponse.in_db;
-                        that.short_link_expires = jsonResponse.short_link_expires;
-                        that.password_token = jsonResponse.password_token;
-                        window.document.title = jsonResponse.display_name;
+                        }
+                        this.applyServerState(data);
                     });
+                }).catch(() => {
+                    if (this.saveState === 'saved') this.flashSyncNote('Offline');
                 });
             },
-            setChangeTimeout() {
-                let that = this;
-                if (that.changeTimeout !== null)
-                    clearTimeout(that.changeTimeout);
-                that.changeTimeout = setTimeout(function () {
-                    that.submitChange();
-                }, 500);
-            },
-            submitData(data) {
-                const headers = {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                };
-                const storedPassword = localStorage.getItem('password-{{ item.guid }}');
-                if (storedPassword) {
-                    headers['X-Item-Password'] = storedPassword;
+            applyServerState(data) {
+                if (this.dataLoaded && this.inDb && data.text !== this.text && this.saveState === 'saved') {
+                    this.flashSyncNote('Updated from elsewhere');
                 }
-                return fetch('{{ request.path }}', {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(data)
-                });
-            },
-            setPassword() {
-                let that = this;
-                this.submitData({password: this.newPassword}).then(function () {
-                    localStorage.setItem('password-{{ item.guid }}', that.newPassword);
-                    that.newPassword = '';
-                    that.passwordDialog = false;
-                    that.$q.notify({
-                        message: 'Password set',
-                        color: 'positive'
-                    });
-                });
-            },
-            verifyPassword() {
-                let that = this;
-                fetch('{{ request.path }}verify-password/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    },
-                    body: JSON.stringify({password: this.inputPassword})
-                }).then(function (response) {
-                    if (response.ok) {
-                        localStorage.setItem('password-{{ item.guid }}', that.inputPassword);
-                        that.locked = false;
-                        that.promptPasswordDialog = false;
-                        that.update();
-                    } else {
-                        localStorage.removeItem('password-{{ item.guid }}');
-                        that.$q.notify({
-                            message: 'Incorrect password',
-                            color: 'negative'
-                        });
+                this.locked = false;
+                this.text = data.text;
+                this.mode = data.mode;
+                if (!this.editingTitle) this.name = data.name;
+                this.displayName = data.display_name;
+                this.inDb = data.in_db;
+                this.hasPassword = data.has_password;
+                this.shortcut = data.shortcut;
+                this.shortLinkExpiresAt = data.short_link_expires_at;
+                this.passwordToken = data.password_token;
+                this.uploads = data.uploads.map((upload) => {
+                    if (data.password_token) {
+                        upload.url += (upload.url.indexOf('?') === -1 ? '?' : '&') + 't=' + encodeURIComponent(data.password_token);
                     }
+                    return upload;
+                });
+                document.title = data.display_name;
+            },
+            flashSyncNote(note) {
+                this.syncNote = note;
+                clearTimeout(this.syncNoteTimeout);
+                this.syncNoteTimeout = setTimeout(() => { this.syncNote = ''; }, 2500);
+            },
+            showToast(text, error) {
+                this.toast = {text: text, error: !!error};
+                clearTimeout(this.toastTimeout);
+                this.toastTimeout = setTimeout(() => { this.toast = {text: '', error: false}; }, 2200);
+            },
+            save(data) {
+                // Edits made while this save is in flight keep polling paused until they're saved too.
+                const revision = this.editRevision;
+                this.pendingSaves += 1;
+                this.preventUpdates = true;
+                this.saveState = 'saving';
+                // One save at a time: the server writes every field, so overlapping saves lose changes.
+                this.saveQueue = (this.saveQueue || Promise.resolve()).catch(() => {}).then(() => postJson(ITEM_PATH, data));
+                return this.saveQueue.then((response) => {
+                    if (!response.ok) throw new Error('save failed');
+                    this.pendingSaves -= 1;
+                    if (this.pendingSaves > 0 || revision !== this.editRevision) return;
+                    this.saveState = 'saved';
+                    this.preventUpdates = false;
+                    this.update();
+                }).catch(() => {
+                    this.pendingSaves -= 1;
+                    if (revision !== this.editRevision) return;
+                    this.saveState = 'error';
+                    clearTimeout(this.changeTimeout);
+                    this.changeTimeout = setTimeout(() => this.submitChange(), 3000);
                 });
             },
             submitChange() {
-                let that = this;
-                that.preventUpdates = true;
-                that.submitData({'text': this.text, 'mode': this.mode}).then(function (result) {
-                    console.log(result);
-                }).finally(function () {
-                    that.preventUpdates = false;
-                });
+                return this.save({text: this.text, mode: this.mode});
             },
-            handleChange() {
+            onTextInput() {
+                this.editRevision += 1;
                 this.preventUpdates = true;
-                this.setUpdateInterval();
-                this.setChangeTimeout();
+                this.saveState = 'pending';
+                clearTimeout(this.changeTimeout);
+                this.changeTimeout = setTimeout(() => this.submitChange(), 500);
             },
-            getUploadParamsCacheKey(file) {
-                return file.name + file.size;
+            setMode(mode) {
+                this.mode = mode;
+                clearTimeout(this.changeTimeout);
+                this.submitChange();
             },
-            fetchUploadParams(files) {
-                let that = this;
-                const headers = {
-                    'X-CSRFToken': '{{ csrf_token }}'
-                };
-                const storedPassword = localStorage.getItem('password-{{ item.guid }}');
-                if (storedPassword) {
-                    headers['X-Item-Password'] = storedPassword;
-                }
-                for (let file of files) {
-                    let key = this.getUploadParamsCacheKey(file);
-                    let formData = new FormData();
-                    formData.append('filename', file.name);
-                    fetch('{{ request.path }}generate-upload-params/', {
-                        method: 'POST',
-                        headers: headers,
-                        body: formData
-                    }).then(function (result) {
-                        result.json().then(function (resultData) {
-                            that.uploadParamsCache[key] = resultData;
-                            console.log(that.uploadParamsCache);
-                        });
-                    });
-                }
+            saveTitle() {
+                this.editingTitle = false;
+                if (!this.dataLoaded || this.locked) return;
+                this.save({name: this.name.trim()});
             },
-            getUploadUrl(files) {
-                const url = this.uploadParamsCache[this.getUploadParamsCacheKey(files[0])].url;
-                console.log('getUploadUrl', url);
-                return url;
+            resizeEditor() {
+                const editor = this.$refs.editor;
+                if (!editor) return;
+                editor.style.height = 'auto';
+                editor.style.height = editor.scrollHeight + 'px';
             },
-            getUploadFormFields(files) {
-                const fields = this.uploadParamsCache[this.getUploadParamsCacheKey(files[0])].fields;
-                const formFields = [];
-                for (const [key, value] of Object.entries(fields)) {
-                    formFields.push({name: key, value: value});
-                }
-                console.log('getUploadFormFields', formFields);
-                return formFields;
+            copyLink() {
+                const url = window.location.protocol + '//' + window.location.host + this.shareUrl;
+                navigator.clipboard.writeText(url).then(() => {
+                    this.copied = true;
+                    setTimeout(() => { this.copied = false; }, 1600);
+                }, () => this.showToast('Copy failed. Select the link instead.', true));
             },
-            handleUploading(info) {
-                if (this.$refs.uploader) {
-                    // Update progress based on files
-                    const files = this.$refs.uploader.files;
-                    if (files && files.length > 0) {
-                        let totalLoaded = 0;
-                        let totalSize = 0;
-                        files.forEach(f => {
-                            if (f.__status === 'uploading' || f.__status === 'uploaded') {
-                                totalLoaded += (f.__uploaded || 0);
-                            }
-                            totalSize += f.size;
-                        });
-                        if (totalSize > 0) {
-                            this.uploadProgress = (totalLoaded / totalSize) * 100;
-                        }
-                    }
-                }
+            cycleTheme() {
+                this.theme = {auto: 'off', off: 'on', on: 'auto'}[this.theme] || 'auto';
             },
-            handleUploadStart() {
-                this.isUploading = true;
-                this.uploadProgress = 0;
-                if (this.progressInterval) {
-                    clearInterval(this.progressInterval);
-                }
-                this.progressInterval = setInterval(() => {
-                    this.handleUploading();
-                }, 100);
+            openPasswordDialog() {
+                this.$refs.pwDialog.showModal();
             },
-            handleUploadFinish() {
-                if (this.progressInterval) {
-                    clearInterval(this.progressInterval);
-                    this.progressInterval = null;
-                }
-                this.uploadVisible = false;
-                this.isUploading = false;
-                this.uploadProgress = 0;
-                this.$refs.uploader.reset();
+            setPassword(password) {
+                postJson(ITEM_PATH, {password: password}).then((response) => {
+                    if (!response.ok) throw new Error('failed');
+                    if (password) storageSet(PASSWORD_KEY, password);
+                    else storageRemove(PASSWORD_KEY);
+                    this.$refs.pwDialog.close();
+                    this.showToast(password ? 'Password set' : 'Password removed');
+                    this.update();
+                }).catch(() => this.showToast('Password not changed. Try again.', true));
             },
-            handleUploaded(info) {
-                if (this.$refs.uploader) {
-                    this.handleUploading();
-                }
-                // console.log('handleUploaded', info);
-                const headers = {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                };
-                const storedPassword = localStorage.getItem('password-{{ item.guid }}');
-                if (storedPassword) {
-                    headers['X-Item-Password'] = storedPassword;
-                }
-                for (const file of info.files) {
-                    fetch('{{ request.path }}upload/', {
-                        method: 'POST',
-                        headers: headers,
-                        body: JSON.stringify({
-                            'key': '{{ item.guid }}/' + file.name,
-                            'url': info.xhr.responseURL + '/{{ item.guid }}/' + file.name
-                        })
-                    }).then(function (result) {
-                        console.log(result);
-                    });
-                }
-            },
-            deleteUpload(upload_guid) {
-                this.uploads = this.uploads.filter(upload => upload.guid !== upload_guid);
-                const headers = {
-                    'X-CSRFToken': '{{ csrf_token }}'
-                };
-                const storedPassword = localStorage.getItem('password-{{ item.guid }}');
-                if (storedPassword) {
-                    headers['X-Item-Password'] = storedPassword;
-                }
-                fetch('{{ request.path }}upload/' + upload_guid + '/delete/', {
+            verifyPassword() {
+                fetch(ITEM_PATH + 'verify-password/', {
                     method: 'POST',
-                    headers: headers
-                }).then(function (result) {
-                    console.log(result);
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
+                    body: JSON.stringify({password: this.inputPassword})
+                }).then((response) => {
+                    if (response.ok) {
+                        storageSet(PASSWORD_KEY, this.inputPassword);
+                        this.inputPassword = '';
+                        this.locked = false;
+                        this.update();
+                    } else {
+                        storageRemove(PASSWORD_KEY);
+                        this.unlockError = 'That password is incorrect.';
+                    }
                 });
             },
-            markdown_parse(text) {
-                let that = this;
-                let html = DOMPurify.sanitize(marked.parse(text));
 
-                setTimeout(function(){
-                    window.vm = that;
-                    let imgs = document.getElementsByTagName('img');
-                    for (let img of imgs) {
-                        img.style.cursor = 'pointer';
-                        img.removeEventListener('click', handleImageClick);
-                        img.addEventListener('click', handleImageClick);
+            // Uploads: generate-upload-params -> POST the file -> register it on the item
+            uploadFile(file, onProgress) {
+                const formData = new FormData();
+                formData.append('filename', file.name);
+                return fetch(ITEM_PATH + 'generate-upload-params/', {
+                    method: 'POST',
+                    headers: itemHeaders(),
+                    body: formData
+                }).then((response) => {
+                    if (!response.ok) throw new Error('Upload refused');
+                    return response.json();
+                }).then((params) => {
+                    const body = new FormData();
+                    for (const [key, value] of Object.entries(params.fields)) {
+                        body.append(key, value);
                     }
-                }, 100);
-
-                return html;
+                    body.append('file', file, file.name);
+                    return postWithProgress(params.url, body, onProgress).then(() => {
+                        return postJson(ITEM_PATH + 'upload/', {
+                            key: params.fields.key,
+                            url: params.url + '/' + params.fields.key
+                        });
+                    });
+                }).then((response) => {
+                    if (!response.ok) throw new Error('Upload not registered');
+                    return response.json();
+                });
             },
-            handleKeyup(event){
-                let pos = event.target.selectionStart;
-                let char = event.target.value[pos-1];
-                if (char === '=' && event.code !== 'Backspace' && event.code !== 'Delete') {
-                    let input = event.target;
-                    let val = input.value;
-                    let start = val.lastIndexOf('\n', pos - 1) + 1;
-                    let end = val.indexOf('\n', pos);
-                    if (end === -1)
-                        end = val.length;
-                    let expression = val.substring(start, end-1);
-                    let result = this.evaluate_expression(expression);
-                    let extra = result.length + 1;
-                    if (result) {
-                        input.setRangeText(' ' + result, pos, input.selectionEnd, 'end');
-                        this.text = input.value;
-                        this.submitChange();
-                    }
+            uploadFiles(files) {
+                files = Array.from(files);
+                if (!files.length || this.locked) return;
+                if (this.upload.active) {
+                    this.upload.count += files.length;
+                    this.upload.total += files.reduce((sum, f) => sum + f.size, 0);
+                    this.uploadQueue.push(...files);
+                    return;
                 }
-            },
-            evaluate_expression(expression) {
-                let expr = exprEval.Parser.parse(expression);
-                return expr.evaluate();
-            },
-            playNextAudio(event) {
-                const currentAudio = event.target;
-                const currentRow = currentAudio.closest('tr');
-                if (!currentRow) return;
-
-                let nextRow = currentRow.nextElementSibling;
-                while (nextRow) {
-                    const nextAudio = nextRow.querySelector('audio');
-                    if (nextAudio) {
-                        nextAudio.play();
+                this.uploadQueue = files.slice();
+                this.upload = {active: true, count: files.length, done: 0, loaded: 0, total: files.reduce((sum, f) => sum + f.size, 0)};
+                let finishedBytes = 0;
+                let failed = 0;
+                const next = () => {
+                    const file = this.uploadQueue.shift();
+                    if (!file) {
+                        this.upload.active = false;
+                        if (failed) this.showToast(failed + (failed === 1 ? ' file' : ' files') + ' failed to upload', true);
+                        else this.showToast(this.upload.count === 1 ? 'File uploaded' : this.upload.count + ' files uploaded');
+                        this.update();
                         return;
                     }
-                    nextRow = nextRow.nextElementSibling;
-                }
+                    this.uploadFile(file, (loaded) => {
+                        this.upload.loaded = finishedBytes + loaded;
+                    }).catch(() => { failed += 1; }).then(() => {
+                        finishedBytes += file.size;
+                        this.upload.loaded = finishedBytes;
+                        this.upload.done += 1;
+                        this.update();
+                        next();
+                    });
+                };
+                next();
             },
-            preloadNextAudio(event) {
-                const currentAudio = event.target;
-                const currentRow = currentAudio.closest('tr');
-                if (!currentRow) return;
-
-                let nextRow = currentRow.nextElementSibling;
-                while (nextRow) {
-                    const nextAudio = nextRow.querySelector('audio');
-                    if (nextAudio) {
-                        nextAudio.load();
-                        return;
-                    }
-                    nextRow = nextRow.nextElementSibling;
-                }
+            onFilesPicked(event) {
+                this.uploadFiles(event.target.files);
+                event.target.value = '';
             },
-            formatDate(dateStr) {
-                if (!dateStr) return '';
-                const date = new Date(dateStr);
-                return date.toLocaleString();
+            onDragEnter(event) {
+                if (this.locked || !Array.from(event.dataTransfer.types).includes('Files')) return;
+                this.dragDepth += 1;
+            },
+            onDragLeave() {
+                if (this.dragDepth > 0) this.dragDepth -= 1;
+            },
+            onDrop(event) {
+                this.dragDepth = 0;
+                if (event.dataTransfer.files.length) this.uploadFiles(event.dataTransfer.files);
             },
             handlePaste(event) {
-                let that = this;
-                if (event.clipboardData.files.length > 0) {
-                    event.preventDefault();
-                    event.stopPropagation();
-
-                    let file = event.clipboardData.files[0];
-
-                    let input = event.target;
-                    input.setRangeText('![...uploading image...]()', input.selectionStart, input.selectionEnd, 'select');
-
-                    let filename = 'image_' + Date.now() + '.png';
-                    let formData = new FormData();
-                    formData.append('filename', filename);
-                    let headers = {
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    };
-                    const storedPassword = localStorage.getItem('password-{{ item.guid }}');
-                    if (storedPassword) {
-                        headers['X-Item-Password'] = storedPassword;
-                    }
-                    fetch('{{ request.path }}generate-upload-params/', {
-                        method: 'POST',
-                        headers: headers,
-                        body: formData
-                    }).then(function (result) {
-                        result.json().then(function (resultData) {
-                            let url = resultData.url;
-                            let formData = new FormData();
-                            for (let [key, value] of Object.entries(resultData.fields)) {
-                                formData.append(key, value);
-                            }
-                            formData.append('file', file, filename);
-                            fetch(url, {
-                                method: 'POST',
-                                body: formData
-                            }).then(function(result){
-                                let uploadHeaders = {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRFToken': '{{ csrf_token }}'
-                                };
-                                if (storedPassword) {
-                                    uploadHeaders['X-Item-Password'] = storedPassword;
-                                }
-                                fetch('{{ request.path }}upload/', {
-                                    method: 'POST',
-                                    headers: uploadHeaders,
-                                    body: JSON.stringify({
-                                        'key': '{{ item.guid }}/' + filename,
-                                        'url': result.url + '/{{ item.guid }}/' + filename
-                                    })
-                                }).then(function (result) {
-                                    result.json().then(function(data){
-                                        let finalUrl = data.url;
-                                        if (that.password_token) {
-                                            finalUrl += '?t=' + encodeURIComponent(that.password_token);
-                                        }
-                                        input.setRangeText('![](' + finalUrl + ')', input.selectionStart, input.selectionEnd, 'start');
-                                        input.selectionStart += 2;
-                                        input.setRangeText('insert image description here', input.selectionStart, input.selectionEnd, 'select');
-                                        that.text = input.value;
-                                        that.submitChange();
-                                    });
-                                });
-                            });
-                        });
-                    });
+                if (!event.clipboardData.files.length) return;
+                event.preventDefault();
+                const original = event.clipboardData.files[0];
+                const extension = (original.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+                const file = new File([original], 'image_' + Date.now() + '.' + extension, {type: original.type});
+                const input = event.target;
+                const placeholder = '![uploading ' + file.name + '…]()';
+                input.setRangeText(placeholder, input.selectionStart, input.selectionEnd, 'end');
+                this.text = input.value;
+                this.uploadFile(file, () => {}).then((data) => {
+                    let url = data.url;
+                    if (this.passwordToken) url += '?t=' + encodeURIComponent(this.passwordToken);
+                    this.text = this.text.replace(placeholder, '![](' + url + ')');
+                    this.submitChange();
+                    this.update();
+                }).catch(() => {
+                    this.text = this.text.replace(placeholder, '');
+                    this.showToast('Image upload failed', true);
+                });
+            },
+            deleteUpload(upload) {
+                if (this.confirmDelete !== upload.guid) {
+                    this.confirmDelete = upload.guid;
+                    clearTimeout(this.confirmDeleteTimeout);
+                    this.confirmDeleteTimeout = setTimeout(() => { this.confirmDelete = null; }, 3000);
+                    return;
                 }
+                this.confirmDelete = null;
+                if (this.audio.guid === upload.guid) {
+                    this.player.pause();
+                    this.audio = {guid: null, playing: false, progress: 0};
+                }
+                this.uploads = this.uploads.filter(u => u.guid !== upload.guid);
+                fetch(ITEM_PATH + 'upload/' + upload.guid + '/delete/', {
+                    method: 'POST',
+                    headers: itemHeaders()
+                }).then((response) => {
+                    if (!response.ok) throw new Error('failed');
+                    this.showToast('File deleted');
+                }).catch(() => {
+                    this.showToast('Delete failed', true);
+                    this.update();
+                });
+            },
+
+            // Calculator: typing "=" after an expression appends its result
+            handleKeyup(event) {
+                const input = event.target;
+                const pos = input.selectionStart;
+                if (input.value[pos - 1] !== '=' || event.key !== '=') return;
+                const lineStart = input.value.lastIndexOf('\n', pos - 2) + 1;
+                const expression = input.value.substring(lineStart, pos - 1);
+                let result;
+                try {
+                    result = exprEval.Parser.parse(expression).evaluate();
+                } catch (e) {
+                    return;
+                }
+                if (typeof result !== 'number' || !isFinite(result)) return;
+                result = parseFloat(result.toPrecision(12));
+                input.setRangeText(' ' + result, pos, input.selectionEnd, 'end');
+                this.text = input.value;
+                this.onTextInput();
+            },
+
+            // Lightbox
+            openLightbox(url) {
+                this.lightbox = {open: true, url: url, zoomed: false};
+                this.$nextTick(() => this.$refs.lightbox.showModal());
+            },
+            stepLightbox(step) {
+                if (this.images.length < 2 || this.lightboxIndex === -1) return;
+                const index = (this.lightboxIndex + step + this.images.length) % this.images.length;
+                this.lightbox.url = this.images[index].url;
+                this.lightbox.zoomed = false;
+            },
+            onPreviewClick(event) {
+                if (event.target.tagName !== 'IMG') return;
+                const src = event.target.getAttribute('src');
+                const absolute = event.target.src;
+                const match = this.images.find(i => i.url === src || i.url === absolute || absolute.endsWith(i.url));
+                this.openLightbox(match ? match.url : src);
+            },
+
+            // Audio: one shared player that continues to the next audio file
+            toggleAudio(upload) {
+                if (this.audio.guid === upload.guid) {
+                    if (this.player.paused) this.playAudio();
+                    else this.player.pause();
+                    return;
+                }
+                this.audio = {guid: upload.guid, playing: false, progress: 0};
+                this.player.src = upload.url;
+                this.playAudio();
+            },
+            playAudio() {
+                this.player.play().catch(() => {
+                    this.audio = {guid: null, playing: false, progress: 0};
+                    this.showToast("Can't play this file", true);
+                });
+            },
+            playNextAudio() {
+                const tracks = this.uploads.filter(u => u.is_audio);
+                const index = tracks.findIndex(u => u.guid === this.audio.guid);
+                if (index !== -1 && index + 1 < tracks.length) this.toggleAudio(tracks[index + 1]);
+                else this.audio.playing = false;
+            },
+
+            extension(filename) {
+                const dot = filename.lastIndexOf('.');
+                return dot === -1 ? 'FILE' : filename.slice(dot + 1, dot + 6).toUpperCase();
+            },
+            formatDate(value) {
+                return value ? new Date(value).toLocaleString() : '';
+            },
+            relativeTime(value) {
+                const seconds = Math.max(0, (this.clock - new Date(value).getTime()) / 1000);
+                if (seconds < 60) return 'now';
+                if (seconds < 3600) return Math.floor(seconds / 60) + 'm';
+                if (seconds < 86400) return Math.floor(seconds / 3600) + 'h';
+                return Math.floor(seconds / 86400) + 'd';
             }
         }
     });
 
-    function handleImageClick(event) {
-        let url = event.target.src;
-        let relativeUrl = url.replace(/https?:\/\/[^/]*/, '');
-        // find if we have an upload with this url or relative url
-        let found = vm.images.find(i => i.url === url || i.url === relativeUrl);
-        if (found) {
-            vm.slide = found.url;
-        } else {
-            vm.slide = relativeUrl;
-        }
-        vm.fullscreen = true;
-    }
-
-    app.use(Quasar)
-    app.mount('#q-app')
+    app.mount('#app');
 </script>
 </body>
 </html>
