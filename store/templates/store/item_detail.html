@@ -392,7 +392,6 @@
             padding: 7px 16px;
             border-top: 1px solid var(--line-strong);
         }
-        .status > :last-child { text-align: right; }
         .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); margin-right: 7px; vertical-align: 1px; }
         .dot.busy { background: var(--signal); animation: pulse 1s ease-in-out infinite; }
         .dot.err { background: var(--danger); }
@@ -491,7 +490,6 @@
             .editor { min-height: 30vh; }
             .files { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .status { grid-template-columns: 1fr auto; }
-            .status > :last-child { display: none; }
         }
     </style>
 </head>
@@ -657,7 +655,6 @@
                 <span v-text="uploadPercent + '%'"></span>
             </span>
             <span v-else v-text="syncNote"></span>
-            <span>Empty stores are cleared daily</span>
         </footer>
     </main>
 
@@ -1207,9 +1204,19 @@
                 this.uploadFile(file, () => {}).then((data) => {
                     let url = data.url;
                     if (this.passwordToken) url += '?t=' + encodeURIComponent(this.passwordToken);
-                    this.text = this.text.replace(placeholder, '![](' + url + ')');
+                    // Select the alt text so typing right away gives the image a title.
+                    const description = 'insert image description here';
+                    const start = this.text.indexOf(placeholder);
+                    this.text = this.text.replace(placeholder, '![' + description + '](' + url + ')');
                     this.submitChange();
                     this.update();
+                    if (start === -1) return;
+                    this.$nextTick(() => {
+                        const editor = this.$refs.editor;
+                        if (!editor) return;
+                        editor.focus();
+                        editor.setSelectionRange(start + 2, start + 2 + description.length);
+                    });
                 }).catch(() => {
                     this.text = this.text.replace(placeholder, '');
                     this.showToast('Image upload failed', true);
