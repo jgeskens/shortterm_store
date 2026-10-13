@@ -181,6 +181,7 @@
 
         /* Workspace on a 24px grid */
         .work {
+            position: relative;
             display: grid;
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
             min-height: 46vh;
@@ -192,14 +193,38 @@
             background-position: -1px -1px;
         }
         .work.single { grid-template-columns: minmax(0, 1fr); }
-        .pane { position: relative; min-width: 0; padding: 22px 24px 28px; }
+        .work.collapsed { min-height: 0; }
+        .pane { position: relative; min-width: 0; }
         .pane + .pane { border-left: 1px solid var(--line-strong); }
-        .pane-label { position: absolute; top: 8px; right: 12px; }
+        .scroller { padding: 22px 24px 28px; }
+        .collapsed .scroller {
+            height: var(--pane-h, 60vh);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-width: thin;
+            scrollbar-color: var(--line-strong) transparent;
+        }
+        .pane-label, .pane-more { position: absolute; right: 12px; z-index: 1; pointer-events: none; }
+        .pane-label { top: 8px; }
+        .pane-more { bottom: 8px; padding: 3px 6px; border: 1px solid var(--line); background: var(--paper); color: var(--ink-2); }
+        .expand-toggle {
+            position: absolute;
+            left: 50%;
+            bottom: 0;
+            z-index: 2;
+            transform: translate(-50%, 50%);
+            padding: 5px 10px;
+            border: 1px solid var(--line-strong);
+            background: var(--paper);
+            color: var(--ink-2);
+        }
+        .expand-toggle:hover { border-color: var(--ink); color: var(--ink); }
         .editor {
             display: block;
             width: 100%;
             min-height: 40vh;
             padding: 0;
+            scroll-margin: 24px;
             border: 0;
             resize: none;
             overflow: hidden;
@@ -208,6 +233,7 @@
             font: 14px/24px var(--mono);
             caret-color: var(--signal);
         }
+        .collapsed .editor { min-height: calc(var(--pane-h, 60vh) - 100px); }
         .editor:focus { outline: none; }
         .editor::placeholder { color: var(--ink-3); }
         .hints { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; }
@@ -461,7 +487,7 @@
             .title-input { font-size: 30px; }
             .work { grid-template-columns: minmax(0, 1fr); }
             .pane + .pane { border-left: 0; border-top: 1px solid var(--line-strong); }
-            .pane { padding: 18px 16px 22px; }
+            .scroller { padding: 18px 16px 22px; }
             .editor { min-height: 30vh; }
             .files { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .status { grid-template-columns: 1fr auto; }
@@ -502,7 +528,7 @@
         <svg class="tick bl"><use href="#i-tick"/></svg>
         <svg class="tick br"><use href="#i-tick"/></svg>
 
-        <header class="head">
+        <header class="head" ref="head">
             <div class="title-cell">
                 <label class="label" for="title" v-text="'Store / ' + storeLabel"></label>
                 <input id="title" class="title-input" v-model="name" placeholder="Untitled store"
@@ -555,32 +581,40 @@
             </div>
         </section>
 
-        <section v-else class="work" :class="{single: mode !== 'editor'}">
+        <section v-else class="work" :class="{single: mode !== 'editor', collapsed: !expanded}" :style="{'--pane-h': paneHeight + 'px'}">
             <div class="pane" v-if="mode === 'simple' || mode === 'editor'">
                 <span class="label pane-label" v-if="mode === 'editor'">Source</span>
-                <label class="sr-only" for="editor">Text</label>
-                <textarea id="editor" ref="editor" class="editor" v-model="text" spellcheck="false"
-                          placeholder="Start typing. Everything saves as you go."
-                          @input="onTextInput" @keyup="handleKeyup" @paste="handlePaste"></textarea>
-                <div class="hints label" v-if="!text">
-                    <span><kbd>=</kbd> after a sum calculates it</span>
-                    <span><kbd>⌘V</kbd> an image to upload it</span>
-                    <span>Drop files anywhere</span>
+                <div class="scroller" ref="scrollEditor" @scroll="updateOverflow">
+                    <label class="sr-only" for="editor">Text</label>
+                    <textarea id="editor" ref="editor" class="editor" v-model="text" spellcheck="false"
+                              placeholder="Start typing. Everything saves as you go."
+                              @input="onTextInput" @keyup="handleKeyup" @paste="handlePaste"></textarea>
+                    <div class="hints label" v-if="!text">
+                        <span><kbd>=</kbd> after a sum calculates it</span>
+                        <span><kbd>⌘V</kbd> an image to upload it</span>
+                        <span>Drop files anywhere</span>
+                    </div>
                 </div>
+                <span class="label pane-more" v-if="moreBelow.editor">More below ↓</span>
             </div>
             <div class="pane" v-if="mode === 'editor' || mode === 'reader'" @click="onPreviewClick">
                 <span class="label pane-label" v-if="mode === 'editor'">Preview</span>
-                <div v-if="text" class="md" v-html="renderedMarkdown"></div>
-                <div v-else class="empty-read">Nothing written yet.</div>
+                <div class="scroller" ref="scrollPreview" @scroll="updateOverflow">
+                    <div v-if="text" class="md" v-html="renderedMarkdown"></div>
+                    <div v-else class="empty-read">Nothing written yet.</div>
+                </div>
+                <span class="label pane-more" v-if="moreBelow.preview">More below ↓</span>
             </div>
+            <button v-if="expanded || overflowing" class="label expand-toggle" @click="toggleExpanded"
+                    :aria-expanded="expanded" v-text="expanded ? 'Collapse ↑' : 'Expand ↓'"></button>
         </section>
 
         <template v-if="!locked">
-            <div class="files-head">
+            <div class="files-head" ref="filesHead">
                 <span class="label">Files</span>
                 <span class="label" v-text="uploads.length + (uploads.length === 1 ? ' file' : ' files')"></span>
             </div>
-            <div class="files">
+            <div class="files" ref="files">
                 <div v-for="u in uploads" :key="u.guid" class="file" :class="{playing: audio.guid === u.guid && audio.playing}">
                     <button v-if="u.is_image" class="thumb" @click="openLightbox(u.url)" :aria-label="'View ' + u.filename">
                         <img :src="u.url" alt="" loading="lazy">
@@ -612,7 +646,7 @@
             <input ref="fileInput" type="file" multiple hidden @change="onFilesPicked">
         </template>
 
-        <footer class="status label">
+        <footer class="status label" ref="status">
             <span>
                 <i class="dot" :class="{busy: saveState === 'saving' || saveState === 'pending', err: saveState === 'error'}"></i>
                 <span v-text="saveLabel"></span>
@@ -765,6 +799,10 @@
                 clock: Date.now(),
                 copied: false,
                 theme: storageGet('darkMode') || 'auto',
+                expanded: storageGet('textExpanded') === '1',
+                paneHeight: 0,
+                overflowing: false,
+                moreBelow: {editor: false, preview: false},
                 upload: {active: false, count: 0, done: 0, loaded: 0, total: 0},
                 dragDepth: 0,
                 lightbox: {open: false, url: null, zoomed: false},
@@ -787,13 +825,23 @@
 
             this.update();
             setInterval(() => this.update(), 3000);
-            setInterval(() => { this.clock = Date.now(); }, 1000);
+            setInterval(() => {
+                this.clock = Date.now();
+                // Catches size changes nothing else reports, like images loading in the preview.
+                this.updateOverflow();
+            }, 1000);
             window.addEventListener('beforeunload', (event) => {
                 if (this.saveState === 'pending' || this.saveState === 'saving' || this.upload.active) {
                     event.preventDefault();
                     event.returnValue = '';
                 }
             });
+        },
+        mounted() {
+            window.addEventListener('resize', () => this.measureLayout());
+            // Re-measure when anything around the panes changes size: fonts, uploads arriving, a locked store opening.
+            // Setting the same height again doesn't resize anything, so this settles after one pass.
+            new ResizeObserver(() => requestAnimationFrame(() => this.measureLayout())).observe(document.querySelector('.frame'));
         },
         computed: {
             storeLabel() {
@@ -862,10 +910,19 @@
         },
         watch: {
             text() {
-                this.$nextTick(this.resizeEditor);
+                this.$nextTick(() => {
+                    this.resizeEditor();
+                    this.updateOverflow();
+                });
             },
             mode() {
-                this.$nextTick(this.resizeEditor);
+                this.$nextTick(() => {
+                    this.resizeEditor();
+                    this.measureLayout();
+                });
+            },
+            locked() {
+                this.$nextTick(this.measureLayout);
             },
             theme(value) {
                 if (value === 'on') document.documentElement.setAttribute('data-theme', 'dark');
@@ -973,8 +1030,51 @@
             resizeEditor() {
                 const editor = this.$refs.editor;
                 if (!editor) return;
+                // Resetting the height collapses the scroller for a moment; keep its scroll position.
+                const scroller = this.$refs.scrollEditor;
+                const scrollTop = scroller ? scroller.scrollTop : 0;
                 editor.style.height = 'auto';
                 editor.style.height = editor.scrollHeight + 'px';
+                if (scroller) scroller.scrollTop = scrollTop;
+            },
+            // Collapsed panes get the height left over after the header, the first row of files and the status bar.
+            measureLayout() {
+                const refs = this.$refs;
+                if (!refs.head || !refs.status) return;
+                if (window.matchMedia('(max-width: 880px)').matches && this.mode === 'editor') {
+                    // Stacked split panes: one box each, not one screen shared between them.
+                    this.paneHeight = Math.max(240, Math.round(window.innerHeight * 0.6));
+                } else {
+                    const bodyStyle = getComputedStyle(document.body);
+                    const chrome = refs.head.offsetHeight
+                        + (refs.filesHead ? refs.filesHead.offsetHeight : 0)
+                        + (refs.files && refs.files.firstElementChild ? refs.files.firstElementChild.offsetHeight : 0)
+                        + refs.status.offsetHeight
+                        + parseFloat(bodyStyle.paddingTop) + parseFloat(bodyStyle.paddingBottom)
+                        + 2;
+                    this.paneHeight = Math.max(280, Math.floor(window.innerHeight - chrome));
+                }
+                this.$nextTick(this.updateOverflow);
+            },
+            updateOverflow() {
+                let overflowing = false;
+                for (const [key, ref] of [['editor', 'scrollEditor'], ['preview', 'scrollPreview']]) {
+                    const scroller = this.$refs[ref];
+                    const overflows = !!scroller && scroller.scrollHeight > scroller.clientHeight + 1;
+                    overflowing = overflowing || overflows;
+                    // Only when real content is hidden, not just the bottom padding.
+                    const more = !this.expanded && overflows && scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 60;
+                    if (this.moreBelow[key] !== more) this.moreBelow[key] = more;
+                }
+                if (this.overflowing !== overflowing) this.overflowing = overflowing;
+            },
+            toggleExpanded() {
+                this.expanded = !this.expanded;
+                storageSet('textExpanded', this.expanded ? '1' : '0');
+                this.$nextTick(() => {
+                    this.resizeEditor();
+                    this.updateOverflow();
+                });
             },
             copyLink() {
                 const url = window.location.protocol + '//' + window.location.host + this.shareUrl;
