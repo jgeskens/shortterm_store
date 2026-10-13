@@ -16,12 +16,17 @@ from django.urls import reverse
 from django.utils.timesince import timeuntil
 from django.utils.timezone import now
 from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
+from django.core import signing
 from django.conf import settings
 from django.contrib.auth.hashers import make_password, check_password
 
 from . import models
-from . import s3
+from . import s3, storage
 from . import utils
+
+UPLOAD_TOKEN_SALT = 'store.upload'
+UPLOAD_TOKEN_MAX_AGE = 3600
 
 
 def check_item_password(item, request):
@@ -152,10 +157,37 @@ def generate_upload_params(request, item_guid):
     item = get_or_create_item(item_guid)
     if not check_item_password(item, request):
         return JsonResponse({'error': 'locked'}, status=403)
-    filename = request.POST.get('filename')
-    object_path = f'{item.guid}/{filename}'
-    response = s3.create_presigned_post_with_config(object_name=object_path)
-    return JsonResponse(response)
+    try:
+        key = storage.key_for(item.guid, request.POST.get('filename', ''))
+    except storage.InvalidKey:
+        return JsonResponse({'error': 'invalid filename'}, status=400)
+    return JsonResponse({
+        'url': reverse('upload_receive', args=(str(item.guid),)),
+        'fields': {
+            'key': key,
+            'token': signing.dumps(key, salt=UPLOAD_TOKEN_SALT),
+        },
+    })
+
+
+@csrf_exempt
+@require_POST
+def upload_receive(request, item_guid):
+    # Authorized by the signed token from generate_upload_params, like an S3 presigned POST.
+    key = request.POST.get('key', '')
+    try:
+        signed_key = signing.loads(
+            request.POST.get('token', ''), salt=UPLOAD_TOKEN_SALT, max_age=UPLOAD_TOKEN_MAX_AGE
+        )
+    except signing.BadSignature:
+        return JsonResponse({'error': 'invalid token'}, status=403)
+    if signed_key != key or key.split('/', 1)[0] != item_guid:
+        return JsonResponse({'error': 'invalid token'}, status=403)
+    uploaded_file = request.FILES.get('file')
+    if uploaded_file is None:
+        return JsonResponse({'error': 'no file'}, status=400)
+    storage.save(key, uploaded_file)
+    return HttpResponse(status=204)
 
 
 @require_POST
@@ -165,7 +197,12 @@ def upload(request, item_guid):
         return JsonResponse({'error': 'locked'}, status=403)
     data = json.loads(request.body.decode('utf-8'))
     assert 'url' in data and 'key' in data
-    u, created = models.Upload.objects.get_or_create(item=item, **data)
+    # Never trust the client's key: it must live under this item.
+    try:
+        key = storage.key_for(item.guid, data['key'].rsplit('/', 1)[-1])
+    except storage.InvalidKey:
+        return JsonResponse({'error': 'invalid filename'}, status=400)
+    u, created = models.Upload.objects.get_or_create(item=item, key=key, defaults={'url': data['url']})
     if not created:
         u.modified = now()
         u.save()

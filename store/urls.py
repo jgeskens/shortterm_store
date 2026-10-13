@@ -5,6 +5,7 @@ from . import views
 
 urlpatterns = [
     path('<item_guid>/generate-upload-params/', views.generate_upload_params),
+    path('<item_guid>/upload/receive/', views.upload_receive, name='upload_receive'),
     path('<item_guid>/upload/', views.upload),
     path('<item_guid>/verify-password/', views.verify_password),
     path('<item_guid>/upload/<upload_guid>/download/', views.upload_download, name='upload_download'),
