@@ -31,3 +31,15 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  cron:
+    build: .
+    restart: unless-stopped
+    command: ["sh", "-c", "while true; do python manage.py cleanup_empty_stores; sleep 86400; done"]
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-dev-insecure-key}
+      DATABASE_URL: postgres://shorttermstore:${POSTGRES_PASSWORD:-shorttermstore}@db:5432/shorttermstore
+      STORAGE_ROOT: /storage
+    depends_on:
+      db:
+        condition: service_healthy
