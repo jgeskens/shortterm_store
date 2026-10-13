@@ -1201,6 +1201,8 @@
                 const placeholder = '![uploading ' + file.name + '…]()';
                 input.setRangeText(placeholder, input.selectionStart, input.selectionEnd, 'end');
                 this.text = input.value;
+                // Save the placeholder like any edit, or the next poll replaces the text and it's gone.
+                this.onTextInput();
                 this.uploadFile(file, () => {}).then((data) => {
                     let url = data.url;
                     if (this.passwordToken) url += '?t=' + encodeURIComponent(this.passwordToken);
@@ -1219,6 +1221,7 @@
                     });
                 }).catch(() => {
                     this.text = this.text.replace(placeholder, '');
+                    this.onTextInput();
                     this.showToast('Image upload failed', true);
                 });
             },
