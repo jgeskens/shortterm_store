@@ -134,8 +134,6 @@ STORAGES = {
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-UPLOAD_BUCKET = env('UPLOAD_BUCKET', default='')
-
 # Uploaded files
 
 STORAGE_ROOT = Path(env('STORAGE_ROOT', default=str(BASE_DIR / 'storage')))

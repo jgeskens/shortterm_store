@@ -119,3 +119,62 @@ class UploadFlowTest(TempStorageMixin, TestCase):
             content_type='application/json',
         )
         self.assertEqual(response.status_code, 400)
+
+
+class DownloadDeleteTest(TempStorageMixin, TestCase):
+    def setUp(self):
+        super().setUp()
+        self.guid = str(uuid.uuid4())
+        self.item = Item.objects.create(guid=self.guid)
+
+    def make_upload(self, filename, content=b'x'):
+        key = f'{self.guid}/{filename}'
+        storage_path = self.storage_root / self.guid / filename
+        storage_path.parent.mkdir(parents=True, exist_ok=True)
+        storage_path.write_bytes(content)
+        return Upload.objects.create(item=self.item, key=key, url='x')
+
+    def download_url(self, upload):
+        return f'/{self.guid}/upload/{upload.guid}/download/'
+
+    def test_download_uses_accel_redirect(self):
+        upload = self.make_upload('song.mp3')
+        response = self.client.get(self.download_url(upload))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['X-Accel-Redirect'], f'/_protected/{self.guid}/song.mp3')
+        self.assertEqual(response['Content-Type'], 'audio/mpeg')
+        self.assertEqual(response.content, b'')
+
+    def test_download_quotes_odd_names(self):
+        upload = self.make_upload('mijn foto #1 é?.png')
+        response = self.client.get(self.download_url(upload))
+        self.assertEqual(
+            response['X-Accel-Redirect'],
+            f'/_protected/{self.guid}/mijn%20foto%20%231%20%C3%A9%3F.png',
+        )
+
+    def test_download_missing_file_is_404(self):
+        upload = Upload.objects.create(item=self.item, key=f'{self.guid}/gone.png', url='x')
+        self.assertEqual(self.client.get(self.download_url(upload)).status_code, 404)
+
+    def test_download_locked(self):
+        self.item.password = make_password('pw')
+        self.item.save()
+        upload = self.make_upload('a.png')
+        self.assertEqual(self.client.get(self.download_url(upload)).status_code, 403)
+        self.assertEqual(self.client.get(self.download_url(upload) + '?password=pw').status_code, 200)
+        token = views.get_item_password_token(self.item)
+        self.assertEqual(self.client.get(self.download_url(upload) + f'?t={token}').status_code, 200)
+
+    def test_delete_removes_file_and_row(self):
+        upload = self.make_upload('a.png')
+        response = self.client.post(f'/{self.guid}/upload/{upload.guid}/delete/')
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Upload.objects.filter(pk=upload.pk).exists())
+        self.assertFalse((self.storage_root / self.guid / 'a.png').exists())
+
+    def test_delete_with_missing_file(self):
+        upload = Upload.objects.create(item=self.item, key=f'{self.guid}/gone.png', url='x')
+        response = self.client.post(f'/{self.guid}/upload/{upload.guid}/delete/')
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Upload.objects.filter(pk=upload.pk).exists())

@@ -1,7 +1,6 @@
 import json
 from datetime import timedelta
 
-import boto3
 import uuid
 from hashlib import sha1, sha256
 
@@ -22,7 +21,7 @@ from django.conf import settings
 from django.contrib.auth.hashers import make_password, check_password
 
 from . import models
-from . import s3, storage
+from . import storage
 from . import utils
 
 UPLOAD_TOKEN_SALT = 'store.upload'
@@ -227,8 +226,7 @@ def upload_delete(request, item_guid, upload_guid):
     if not check_item_password(item, request):
         return JsonResponse({'error': 'locked'}, status=403)
     upload = get_object_or_404(models.Upload, item=item, guid=upload_guid)
-    s3_client = boto3.client('s3')
-    s3_client.delete_object(Bucket=settings.UPLOAD_BUCKET, Key=upload.key)
+    storage.delete(upload.key)
     upload.delete()
     return HttpResponse('OK')
 
@@ -238,4 +236,13 @@ def upload_download(request, item_guid, upload_guid):
     if not check_item_password(item, request):
         return HttpResponse('Locked', status=403)
     upload = get_object_or_404(models.Upload, item=item, guid=upload_guid)
-    return redirect(upload.presigned_url)
+    try:
+        path = storage.path_for_key(upload.key)
+    except storage.InvalidKey:
+        raise Http404
+    if not path.is_file():
+        raise Http404
+    # nginx serves the file from its internal /_protected/ location.
+    response = HttpResponse(content_type=storage.content_type(upload.key))
+    response['X-Accel-Redirect'] = storage.accel_redirect(upload.key)
+    return response

@@ -3,7 +3,6 @@ from datetime import timedelta
 
 from django.db import models
 from django.utils.timezone import now
-from django.core.cache import cache
 
 from . import utils
 
@@ -50,15 +49,3 @@ class Upload(models.Model):
 
     def __str__(self):
         return f'{self.guid}'
-
-    @property
-    def presigned_url(self):
-        from . import s3
-        cache_key = f'upload_presigned_url_{self.guid}'
-        url = cache.get(cache_key)
-
-        if url is None:
-            url = s3.create_presigned_url_with_config(self.key)
-            cache.set(cache_key, url, 300)
-
-        return url

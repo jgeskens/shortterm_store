@@ -4,12 +4,19 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth.hashers import make_password
 from .models import Item
+from .testing import TempStorageMixin
 
-class PasswordProtectionTest(TestCase):
+class PasswordProtectionTest(TempStorageMixin, TestCase):
     def setUp(self):
+        super().setUp()
         self.client = Client()
         self.item_guid = str(uuid.uuid4())
         self.item = Item.objects.create(guid=self.item_guid)
+
+    def write_file(self, filename):
+        path = self.storage_root / self.item_guid / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'x')
 
     def test_set_password(self):
         # Initial check
@@ -56,6 +63,7 @@ class PasswordProtectionTest(TestCase):
         # Create an upload
         from .models import Upload
         upload = Upload.objects.create(item=self.item, key=f'{self.item_guid}/test.txt', url='http://example.com/test.txt')
+        self.write_file('test.txt')
 
         # GET detail without password should fail
         response = self.client.get(f'/{self.item_guid}/?json')
@@ -74,9 +82,10 @@ class PasswordProtectionTest(TestCase):
         response = self.client.get(download_url)
         self.assertEqual(response.status_code, 403)
 
-        # Download with password in query string should succeed (redirect to S3)
+        # Download with password in query string should succeed (served by nginx)
         response = self.client.get(f'{download_url}?password=testpassword')
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('X-Accel-Redirect', response)
 
         # POST update without password should fail
         response = self.client.post(
@@ -158,8 +167,9 @@ class PasswordProtectionTest(TestCase):
         # Create an upload
         from .models import Upload
         upload = Upload.objects.create(item=self.item, key=f'{self.item_guid}/test.txt', url='http://example.com/test.txt')
+        self.write_file('test.txt')
 
         # Download with token should succeed
         download_url = reverse('upload_download', args=(self.item_guid, str(upload.guid)))
         response = self.client.get(f'{download_url}?t={password_token}')
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 200)
