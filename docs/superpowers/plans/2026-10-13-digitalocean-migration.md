@@ -1584,7 +1584,7 @@ rm -f shorttermstore.dump
 exit $rc'
 ```
 
-Expected: the app is running again whatever happens. `pg_restore` may exit 1 with only notices about objects that did not exist; any other error means restore again before continuing. The dump (all user data) is created mode 0600 and deleted right after the restore.
+Expected: the app is running again whatever happens. `pg_restore` may exit 1 with only notices about objects that did not exist; any other error means restore again before continuing. On the very first restore (into the schema Django 6 created on first start), `--clean` logs 18 errors about identity columns/sequences of the `auth_*`/`django_*` tables; that is expected (seen 2026-10-13). Verify instead with a schema diff (`pg_dump --schema-only` of both sides, must be identical) and an md5 over `store_item`/`store_upload` ordered by guid (must match). Later restores run against the RDS-shaped schema and are clean. The dump (all user data) is created mode 0600 and deleted right after the restore.
 
 - [ ] **Step 3: Compare row counts**
 
