@@ -1,0 +1,15 @@
+.git
+.env
+zappa_settings.json
+venv
+.idea
+.ropeproject
+.python-version
+.DS_Store
+**/__pycache__
+**/*.pyc
+storage
+.data
+staticfiles
+docs
+.superpowers

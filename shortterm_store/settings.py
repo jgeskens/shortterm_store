@@ -29,7 +29,9 @@ SECRET_KEY = env('SECRET_KEY', default='')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG', default=False)
 
-ALLOWED_HOSTS = env('ALLOWED_HOSTS', default=[])
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
+CSRF_TRUSTED_ORIGINS = [origin for origin in env.list('CSRF_TRUSTED_ORIGINS', default=[]) if origin]
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 
 # Application definition
@@ -47,6 +49,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -112,8 +115,6 @@ TIME_ZONE = 'UTC'
 
 USE_I18N = True
 
-USE_L10N = True
-
 USE_TZ = True
 
 
@@ -121,6 +122,12 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.2/howto/static-files/
 
 STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage'},
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
@@ -129,13 +136,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 UPLOAD_BUCKET = env('UPLOAD_BUCKET', default='')
 
-# Email settings
+# Uploaded files
 
-EMAIL_HOST = 'email-smtp.eu-central-1.amazonaws.com'
-EMAIL_PORT = 465
-EMAIL_HOST_USER = env('SMTP_USERNAME', default='')
-if EMAIL_HOST_USER:
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST_PASSWORD = env('SMTP_PASSWORD', default='')
-    EMAIL_USE_SSL = True
-    DEFAULT_FROM_EMAIL = 'Shortterm Store <no-reply@shortterm.store>'
+STORAGE_ROOT = Path(env('STORAGE_ROOT', default=str(BASE_DIR / 'storage')))
+# On the same filesystem as STORAGE_ROOT, so moving a finished upload into place is a rename.
+# docker/start.sh creates it; without it Django falls back to the system temp dir.
+if (STORAGE_ROOT / '.tmp').is_dir():
+    FILE_UPLOAD_TEMP_DIR = str(STORAGE_ROOT / '.tmp')
