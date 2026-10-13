@@ -192,8 +192,9 @@ class ShortLinkExpiryTest(TestCase):
 
 class DesignByHostTest(TestCase):
     def render_with_host(self, host):
+        # Uses the configured NEW_DESIGN_HOSTS, so these cover its default.
         item = Item.objects.create(text='hello')
-        with self.settings(ALLOWED_HOSTS=['*'], NEW_DESIGN_HOSTS=['new.shortterm.store']):
+        with self.settings(ALLOWED_HOSTS=['*']):
             return self.client.get(f'/{item.guid}/', HTTP_HOST=host)
 
     def test_new_domain_gets_new_design(self):
@@ -201,9 +202,10 @@ class DesignByHostTest(TestCase):
         self.assertTemplateUsed(response, 'store/item_detail.html')
         self.assertTemplateNotUsed(response, 'store/item_detail_classic.html')
 
-    def test_original_domain_gets_classic_design(self):
+    def test_original_domain_gets_new_design(self):
         response = self.render_with_host('shortterm.store')
-        self.assertTemplateUsed(response, 'store/item_detail_classic.html')
+        self.assertTemplateUsed(response, 'store/item_detail.html')
+        self.assertTemplateNotUsed(response, 'store/item_detail_classic.html')
 
     def test_unknown_host_gets_classic_design(self):
         response = self.render_with_host('localhost:8000')

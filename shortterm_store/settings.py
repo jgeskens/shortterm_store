@@ -32,7 +32,7 @@ DEBUG = env('DEBUG', default=False)
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
 CSRF_TRUSTED_ORIGINS = [origin for origin in env.list('CSRF_TRUSTED_ORIGINS', default=[]) if origin]
 # Hosts that get the redesigned store page; every other host keeps the classic one.
-NEW_DESIGN_HOSTS = env.list('NEW_DESIGN_HOSTS', default=['new.shortterm.store'])
+NEW_DESIGN_HOSTS = env.list('NEW_DESIGN_HOSTS', default=['shortterm.store', 'new.shortterm.store'])
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 
