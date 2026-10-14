@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>shortterm.store</title>
+</head>
+<body>
+    <a href="/new/">New store →</a>
+    <form action="/open/" method="get">
+        <input name="code" value="{{ code }}" placeholder="abcd1234" aria-label="Store code">
+        <button type="submit">Open</button>
+        {% if error %}<p id="code-error">No store found for that code. Codes only work for a few minutes; ask for a fresh one.</p>{% endif %}
+    </form>
+</body>
+</html>

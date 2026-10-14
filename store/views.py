@@ -75,11 +75,29 @@ def get_or_create_item(item_uuid: str) -> models.Item:
             raise Http404
 
 
-def item_detail(request, item_shortcut=''):
-    if len(item_shortcut) == 0:
-        return redirect(f'/{uuid.uuid4()}/')
-    elif len(item_shortcut) == 8:
-        item = get_object_or_404(models.Item, shortcut=item_shortcut, created__gte=now() - timedelta(minutes=5))
+SHORTCUT_LIFETIME = timedelta(minutes=5)
+
+
+def find_live_item(shortcut: str):
+    """The item a short code points to, if it was created recently enough."""
+    return (models.Item.objects
+            .filter(shortcut=shortcut, created__gte=now() - SHORTCUT_LIFETIME)
+            .order_by('-created')
+            .first())
+
+
+def parse_store_code(raw: str) -> str:
+    """Turn what someone typed or pasted into the code box into a bare code."""
+    value = raw.strip().lower().split('?', 1)[0].split('#', 1)[0]
+    segments = [segment for segment in value.split('/') if segment]
+    return segments[-1] if segments else ''
+
+
+def item_detail(request, item_shortcut):
+    if len(item_shortcut) == 8:
+        item = find_live_item(item_shortcut)
+        if item is None:
+            raise Http404
         return redirect(f'/{item.guid}/')
     elif len(item_shortcut) == 36:
         in_db = False
@@ -156,6 +174,31 @@ def item_detail(request, item_shortcut=''):
         return render(request, template, {'item': item, 'now': now})
     else:
         raise Http404
+
+
+def new_store(request):
+    return redirect(f'/{uuid.uuid4()}/')
+
+
+def landing(request):
+    if request.get_host() not in settings.NEW_DESIGN_HOSTS:
+        return new_store(request)
+    return render(request, 'store/landing.html', {'code': '', 'error': False})
+
+
+def open_store(request):
+    raw = request.GET.get('code', '')
+    code = parse_store_code(raw)
+    if len(code) == 8:
+        item = find_live_item(code)
+        if item is not None:
+            return redirect(f'/{item.guid}/')
+    elif len(code) == 36:
+        try:
+            return redirect(f'/{uuid.UUID(code)}/')
+        except ValueError:
+            pass
+    return render(request, 'store/landing.html', {'code': raw.strip(), 'error': True}, status=404)
 
 
 @require_POST
