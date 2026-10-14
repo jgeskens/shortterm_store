@@ -1,15 +1,209 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>shortterm.store</title>
+    <meta name="description" content="Paste text or drop files into a store, then open its short code on any other device.">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="shortterm.store">
+    <meta property="og:description" content="Paste text or drop files into a store, then open its short code on any other device.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Instrument+Serif&display=swap" rel="stylesheet">
+    <script>
+        // Same pre-paint theme switch as the store page, so a saved dark/light choice carries over.
+        (function () {
+            var mode = 'auto';
+            try { mode = localStorage.getItem('darkMode') || 'auto'; } catch (e) {}
+            if (mode === 'on') document.documentElement.setAttribute('data-theme', 'dark');
+            else if (mode === 'off') document.documentElement.setAttribute('data-theme', 'light');
+        })();
+    </script>
+    <style>
+        :root {
+            --bg: #f4f3ef;
+            --paper: #fbfaf7;
+            --ink: #161614;
+            --ink-2: #5d5c57;
+            --ink-3: #9a988f;
+            --line: #e1dfd7;
+            --line-strong: #c4c1b6;
+            --grid: rgba(22, 22, 20, 0.045);
+            --signal: #e0531f;
+            --signal-ink: #ffffff;
+            --signal-wash: rgba(224, 83, 31, 0.08);
+            --danger: #c2321f;
+            --ok: #2f8a5b;
+            --serif: 'Instrument Serif', 'Times New Roman', serif;
+            --sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
+            --mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+            --cell: 12px 16px;
+            color-scheme: light;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --bg: #0e0e0d;
+                --paper: #151514;
+                --ink: #ecebe6;
+                --ink-2: #a3a199;
+                --ink-3: #6b6a64;
+                --line: #2a2a27;
+                --line-strong: #43423e;
+                --grid: rgba(236, 235, 230, 0.04);
+                --signal: #ff7240;
+                --signal-ink: #160a05;
+                --signal-wash: rgba(255, 114, 64, 0.1);
+                --danger: #ff6b57;
+                --ok: #5fc48f;
+                color-scheme: dark;
+            }
+        }
+        :root[data-theme="dark"] {
+            --bg: #0e0e0d;
+            --paper: #151514;
+            --ink: #ecebe6;
+            --ink-2: #a3a199;
+            --ink-3: #6b6a64;
+            --line: #2a2a27;
+            --line-strong: #43423e;
+            --grid: rgba(236, 235, 230, 0.04);
+            --signal: #ff7240;
+            --signal-ink: #160a05;
+            --signal-wash: rgba(255, 114, 64, 0.1);
+            --danger: #ff6b57;
+            --ok: #5fc48f;
+            color-scheme: dark;
+        }
+
+        * { box-sizing: border-box; }
+        html, body { margin: 0; }
+        body {
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg);
+            background-image:
+                linear-gradient(var(--grid) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+            background-size: 24px 24px;
+            background-position: -1px -1px;
+            color: var(--ink);
+            font: 14px/1.6 var(--sans);
+            -webkit-font-smoothing: antialiased;
+        }
+        :focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+        .brand {
+            align-self: flex-start;
+            padding: 20px 28px;
+            font: 13px/1 var(--mono);
+            color: var(--ink-2);
+            text-decoration: none;
+        }
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            padding: 24px 28px 48px;
+            text-align: center;
+        }
+        h1 {
+            margin: 0;
+            font: 400 clamp(46px, 9vw, 88px)/0.95 var(--serif);
+            letter-spacing: -0.01em;
+        }
+        .pitch { margin: 0; max-width: 440px; color: var(--ink-2); font-size: 15px; }
+
+        .actions { display: flex; align-items: flex-start; gap: 12px; margin-top: 8px; }
+        .new {
+            display: inline-block;
+            padding: 11px 18px;
+            border-radius: 2px;
+            background: var(--signal);
+            color: var(--signal-ink);
+            font-weight: 500;
+            line-height: 20px;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .or { font: 12px/42px var(--mono); color: var(--ink-3); }
+
+        .open { display: flex; flex-direction: column; gap: 6px; width: 240px; margin: 0; text-align: left; }
+        .code {
+            display: flex;
+            border: 1px solid var(--line-strong);
+            border-radius: 2px;
+            background: var(--paper);
+            font-family: var(--mono);
+        }
+        .code:focus-within { border-color: var(--signal); }
+        .code.has-error { border-color: var(--danger); }
+        .code .prefix { padding: 10px 0 10px 12px; color: var(--ink-3); line-height: 20px; }
+        .code input {
+            flex: 1;
+            min-width: 0;
+            padding: 10px 4px;
+            border: 0;
+            background: transparent;
+            color: var(--ink);
+            font: 14px/20px var(--mono);
+            letter-spacing: 0.08em;
+        }
+        .code input:focus { outline: none; }
+        .code input::placeholder { color: var(--ink-3); }
+        .code button {
+            padding: 0 14px;
+            border: 0;
+            border-left: 1px solid var(--line-strong);
+            background: none;
+            color: var(--ink);
+            font: 500 14px/20px var(--mono);
+            cursor: pointer;
+        }
+        .code button:hover { color: var(--signal); }
+        .error { margin: 0; color: var(--danger); font: 12px/1.5 var(--mono); }
+
+        footer { padding: 0 28px 20px; color: var(--ink-3); font: 11px/1.4 var(--mono); text-align: center; }
+
+        @media (max-width: 600px) {
+            .brand { padding: 16px; }
+            main { padding: 24px 16px 40px; }
+            .actions { flex-direction: column; align-items: stretch; width: 100%; gap: 10px; }
+            .new { text-align: center; }
+            .or { line-height: 1.4; text-align: center; }
+            .open { width: 100%; }
+            footer { padding: 0 16px 16px; }
+        }
+    </style>
 </head>
+
 <body>
-    <a href="/new/">New store →</a>
-    <form action="/open/" method="get">
-        <input name="code" value="{{ code }}" placeholder="abcd1234" aria-label="Store code">
-        <button type="submit">Open</button>
-        {% if error %}<p id="code-error">No store found for that code. Codes only work for a few minutes; ask for a fresh one.</p>{% endif %}
-    </form>
+    <a class="brand" href="/">shortterm.store</a>
+    <main>
+        <h1>From this device<br>to that one.</h1>
+        <p class="pitch">Paste text or drop files into a store, then open its short code on any other device.</p>
+        <div class="actions">
+            <a class="new" href="/new/">New store →</a>
+            <span class="or">or</span>
+            <form class="open" action="/open/" method="get">
+                <div class="code{% if error %} has-error{% endif %}">
+                    <span class="prefix" aria-hidden="true">/</span>
+                    <input name="code" value="{{ code }}" placeholder="abcd1234" maxlength="200"
+                           aria-label="Store code" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+                           {% if error %}aria-invalid="true" aria-describedby="code-error"{% endif %}>
+                    <button type="submit">Open</button>
+                </div>
+                {% if error %}<p class="error" id="code-error">No store found for that code. Codes only work for a few minutes; ask for a fresh one.</p>{% endif %}
+            </form>
+        </div>
+    </main>
+    <footer>text · images · files · optional password</footer>
 </body>
+
 </html>

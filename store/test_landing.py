@@ -129,3 +129,37 @@ class OpenStoreTest(TestCase):
         self.assert_not_found(response)
         self.assertNotContains(response, '<script>x</script>', status_code=404)
         self.assertContains(response, 'value="&quot;&gt;&lt;script&gt;', status_code=404)
+
+
+@override_settings(NEW_DESIGN_HOSTS=['testserver'])
+class LandingContentTest(TestCase):
+    def test_copy_and_head(self):
+        response = self.client.get('/')
+        for text in (
+            '<title>shortterm.store</title>',
+            'From this device<br>to that one.',
+            'Paste text or drop files into a store, then open its short code on any other device.',
+            '<meta name="description"',
+            '<meta property="og:title" content="shortterm.store">',
+            '<meta property="og:description"',
+            'text · images · files · optional password',
+            'New store →',
+            'placeholder="abcd1234"',
+            'autocapitalize="off"',
+            'spellcheck="false"',
+            'localStorage.getItem(\'darkMode\')',
+        ):
+            with self.subTest(text=text):
+                self.assertContains(response, text)
+
+    def test_leaves_out_dropped_copy(self):
+        response = self.client.get('/')
+        self.assertNotContains(response, 'No account')
+        self.assertNotContains(response, 'hour')
+        self.assertNotContains(response, 'autofocus')
+
+    def test_error_state_marks_the_field(self):
+        response = self.client.get('/open/', {'code': 'nope'})
+        self.assertContains(response, 'aria-invalid="true"', status_code=404)
+        self.assertContains(response, 'aria-describedby="code-error"', status_code=404)
+        self.assertContains(response, 'class="code has-error"', status_code=404)
