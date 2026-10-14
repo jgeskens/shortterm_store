@@ -47,6 +47,14 @@ class FindLiveItemTest(TestCase):
     def test_unknown(self):
         self.assertIsNone(views.find_live_item('00000000'))
 
+    def test_not_a_shortcut(self):
+        for shortcut in ('abcd\x00123', 'ABCD1234', 'zzzzzzzz'):
+            with self.subTest(shortcut=shortcut):
+                self.assertIsNone(views.find_live_item(shortcut))
+
+    def test_nul_byte_in_shortcut_path_is_404(self):
+        self.assertEqual(self.client.get('/abcd%00123/').status_code, 404)
+
 
 @override_settings(NEW_DESIGN_HOSTS=['testserver'])
 class LandingTest(TestCase):
@@ -116,7 +124,7 @@ class OpenStoreTest(TestCase):
         self.assertContains(response, f'value="{self.item.shortcut}"', status_code=404)
 
     def test_unknown_and_junk(self):
-        for code in ('00000000', 'nope', 'ünïcødé', 'x' * 500, f'{uuid.uuid4()}'[:35] + 'z'):
+        for code in ('00000000', 'nope', 'ünïcødé', 'x' * 500, f'{uuid.uuid4()}'[:35] + 'z', 'abcd\x00123'):
             with self.subTest(code=code[:20]):
                 self.assert_not_found(self.client.get('/open/', {'code': code}))
 

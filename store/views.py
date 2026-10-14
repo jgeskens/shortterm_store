@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import timedelta
 
 import uuid
@@ -76,10 +77,13 @@ def get_or_create_item(item_uuid: str) -> models.Item:
 
 
 SHORTCUT_LIFETIME = timedelta(minutes=5)
+SHORTCUT_PATTERN = re.compile(r'[0-9a-f]{8}')
 
 
 def find_live_item(shortcut: str):
     """The item a short code points to, if it was created recently enough."""
+    if not SHORTCUT_PATTERN.fullmatch(shortcut):
+        return None
     return (models.Item.objects
             .filter(shortcut=shortcut, created__gte=now() - SHORTCUT_LIFETIME)
             .order_by('-created')
