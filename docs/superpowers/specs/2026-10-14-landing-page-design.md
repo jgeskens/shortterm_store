@@ -34,7 +34,9 @@ A plain `GET` form; no JavaScript needed.
    `https://shortterm.store/abcd1234/` or `shortterm.store/abcd1234` works.
 3. If the result is an 8-character shortcut of an item created in the last
    5 minutes (same rule as `item_detail`), redirect to `/<guid>/`.
-4. Otherwise render the landing page with status 404, the submitted value kept
+4. If the result is a valid UUID (someone pasted a full store link), redirect
+   to `/<uuid>/`, as typing that URL would.
+5. Otherwise render the landing page with status 404, the submitted value kept
    in the input, and the error:
    *"No store found for that code. Codes only work for a few minutes; ask for a fresh one."*
 
