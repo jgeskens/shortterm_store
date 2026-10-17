@@ -382,6 +382,48 @@
             outline-offset: -10px;
         }
         .add:hover { color: var(--signal); outline-color: var(--signal); }
+        .files-tools { display: flex; align-items: center; gap: 12px; }
+        .seg.small button { display: flex; padding: 4px 6px; }
+        .seg.small .icon { width: 14px; height: 14px; }
+
+        /* File list */
+        .file-table { width: 100%; border-collapse: collapse; }
+        .file-table th, .file-table td { padding: 6px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+        .file-table th { padding-top: 8px; padding-bottom: 8px; font-weight: 500; }
+        .file-table tbody tr:hover { background: var(--signal-wash); }
+        .file-table .col-preview { width: 82px; padding-right: 0; }
+        .file-table .col-actions { width: 1%; text-align: right; white-space: nowrap; }
+        .sort { display: inline-flex; align-items: center; gap: 4px; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; }
+        .sort:hover, .sort.on { color: var(--ink); }
+        .sort .arrow { width: 10px; opacity: 0; }
+        .sort:hover .arrow { opacity: 0.5; }
+        .sort.on .arrow { opacity: 1; }
+        .mini-thumb {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 50px;
+            height: 50px;
+            border: 1px solid var(--line);
+            background: var(--bg);
+            overflow: hidden;
+            color: var(--ink-2);
+            text-decoration: none;
+        }
+        button.mini-thumb:hover, a.mini-thumb:hover { border-color: var(--line-strong); }
+        .mini-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .mini-thumb .ext { font-size: 11px; }
+        .mini-thumb .play { width: 30px; height: 30px; }
+        .mini-thumb .play .icon { width: 13px; height: 13px; }
+        .file-row.playing .play { background: var(--signal); border-color: var(--signal); color: var(--signal-ink); }
+        .file-name { font: 13px/1.4 var(--mono); color: var(--ink); text-decoration: none; word-break: break-all; }
+        .file-name:hover { text-decoration: underline; text-underline-offset: 3px; }
+        .file-date { font: 12px/1.4 var(--mono); color: var(--ink-2); white-space: nowrap; }
+        .file-table .del { position: static; opacity: 1; display: inline-flex; margin-left: auto; }
+        .add-row td { padding: 0; }
+        .add-row .add { flex-direction: row; width: 100%; min-height: 56px; }
+        .add-row:hover { background: none !important; }
 
         /* Status bar */
         .status {
@@ -489,6 +531,9 @@
             .scroller { padding: 18px 16px 22px; }
             .editor { min-height: 30vh; }
             .files { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .file-table th, .file-table td { padding-left: 8px; padding-right: 8px; }
+            .file-table .col-preview { width: 66px; }
+            .file-date { white-space: normal; }
             .status { grid-template-columns: 1fr auto; }
         }
     </style>
@@ -511,7 +556,9 @@
         <symbol id="i-left" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M10 3L5 8l5 5"/></symbol>
         <symbol id="i-right" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 3l5 5-5 5"/></symbol>
         <symbol id="i-plus" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M8 2v12M2 8h12"/></symbol>
-        <symbol id="i-tick" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1"><path d="M5.5 0v11M0 5.5h11"/></symbol>
+        <symbol id="i-grid" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/></symbol>
+        <symbol id="i-list" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 4h1.5M2 8h1.5M2 12h1.5M5.5 4H14M5.5 8H14M5.5 12H14"/></symbol>
+        <symbol id="i-tick"viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1"><path d="M5.5 0v11M0 5.5h11"/></symbol>
     </defs>
 </svg>
 
@@ -610,9 +657,68 @@
         <template v-if="!locked">
             <div class="files-head" ref="filesHead">
                 <span class="label">Files</span>
-                <span class="label" v-text="uploads.length + (uploads.length === 1 ? ' file' : ' files')"></span>
+                <div class="files-tools">
+                    <span class="label" v-text="uploads.length + (uploads.length === 1 ? ' file' : ' files')"></span>
+                    <div class="seg small" role="group" aria-label="File view">
+                        <button :aria-pressed="fileView === 'grid'" @click="setFileView('grid')" aria-label="Tiles" title="Tiles">
+                            <svg class="icon"><use href="#i-grid"/></svg>
+                        </button>
+                        <button :aria-pressed="fileView === 'list'" @click="setFileView('list')" aria-label="List" title="List">
+                            <svg class="icon"><use href="#i-list"/></svg>
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div class="files" ref="files">
+            <table v-if="fileView === 'list'" class="file-table" ref="fileTable">
+                <thead>
+                    <tr class="label">
+                        <th class="col-preview">Preview</th>
+                        <th v-for="col in sortColumns" :key="col.field" :aria-sort="sort.by === col.field ? (sort.desc ? 'descending' : 'ascending') : 'none'">
+                            <button class="sort" :class="{on: sort.by === col.field}" @click="toggleSort(col.field)">
+                                <span v-text="col.label"></span>
+                                <span class="arrow" aria-hidden="true" v-text="sort.by === col.field && sort.desc ? '↓' : '↑'"></span>
+                            </button>
+                        </th>
+                        <th class="col-actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="u in sortedUploads" :key="u.guid" class="file-row" :class="{playing: audio.guid === u.guid && audio.playing}">
+                        <td class="col-preview">
+                            <button v-if="u.is_image" class="mini-thumb" @click="openLightbox(u.url)" :aria-label="'View ' + u.filename">
+                                <img :src="u.url" alt="" loading="lazy">
+                            </button>
+                            <div v-else-if="u.is_audio" class="mini-thumb">
+                                <button class="play" @click="toggleAudio(u)" :aria-label="(audio.guid === u.guid && audio.playing ? 'Pause ' : 'Play ') + u.filename">
+                                    <svg class="icon"><use :href="audio.guid === u.guid && audio.playing ? '#i-pause' : '#i-play'"/></svg>
+                                </button>
+                                <div class="audio-bar" v-if="audio.guid === u.guid"><i :style="{width: audio.progress + '%'}"></i></div>
+                            </div>
+                            <a v-else class="mini-thumb" :href="u.url" :aria-label="'Open ' + u.filename">
+                                <span class="ext" v-text="extension(u.filename)"></span>
+                            </a>
+                        </td>
+                        <td><a class="file-name" :href="u.url" v-text="u.filename"></a></td>
+                        <td class="file-date" v-text="formatDate(u.modified)"></td>
+                        <td class="col-actions">
+                            <button class="del" :class="{confirm: confirmDelete === u.guid}" @click="deleteUpload(u)"
+                                    :aria-label="confirmDelete === u.guid ? 'Confirm delete ' + u.filename : 'Delete ' + u.filename">
+                                <svg class="icon"><use href="#i-trash"/></svg>
+                                <span v-if="confirmDelete === u.guid">DELETE?</span>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr class="add-row">
+                        <td colspan="4">
+                            <button class="add" @click="$refs.fileInput.click()">
+                                <svg class="icon"><use href="#i-plus"/></svg>
+                                <span class="label" style="color: inherit">Add or drop files</span>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <div v-else class="files" ref="files">
                 <div v-for="u in uploads" :key="u.guid" class="file" :class="{playing: audio.guid === u.guid && audio.playing}">
                     <button v-if="u.is_image" class="thumb" @click="openLightbox(u.url)" :aria-label="'View ' + u.filename">
                         <img :src="u.url" alt="" loading="lazy">
@@ -804,6 +910,12 @@
                 dragDepth: 0,
                 lightbox: {open: false, url: null, zoomed: false},
                 audio: {guid: null, playing: false, progress: 0},
+                fileView: storageGet('fileView') === 'list' ? 'list' : 'grid',
+                sortColumns: [
+                    {field: 'filename', label: 'Filename'},
+                    {field: 'modified', label: 'Modified'}
+                ],
+                sort: {by: null, desc: false},
                 confirmDelete: null,
                 confirmDeleteTimeout: null,
                 toast: {text: '', error: false},
@@ -891,6 +1003,16 @@
             renderedMarkdown() {
                 return DOMPurify.sanitize(marked.parse(this.text));
             },
+            sortedUploads() {
+                if (!this.sort.by) return this.uploads;
+                const field = this.sort.by;
+                const dir = this.sort.desc ? -1 : 1;
+                return this.uploads.slice().sort((a, b) => {
+                    const x = String(a[field] || '').toLowerCase();
+                    const y = String(b[field] || '').toLowerCase();
+                    return x < y ? -dir : (x > y ? dir : 0);
+                });
+            },
             images() {
                 return this.uploads.filter(u => u.is_image);
             },
@@ -919,6 +1041,9 @@
                 });
             },
             locked() {
+                this.$nextTick(this.measureLayout);
+            },
+            fileView() {
                 this.$nextTick(this.measureLayout);
             },
             theme(value) {
@@ -1045,13 +1170,23 @@
                     const bodyStyle = getComputedStyle(document.body);
                     const chrome = refs.head.offsetHeight
                         + (refs.filesHead ? refs.filesHead.offsetHeight : 0)
-                        + (refs.files && refs.files.firstElementChild ? refs.files.firstElementChild.offsetHeight : 0)
+                        + this.firstFilesRowHeight()
                         + refs.status.offsetHeight
                         + parseFloat(bodyStyle.paddingTop) + parseFloat(bodyStyle.paddingBottom)
                         + 2;
                     this.paneHeight = Math.max(280, Math.floor(window.innerHeight - chrome));
                 }
                 this.$nextTick(this.updateOverflow);
+            },
+            firstFilesRowHeight() {
+                const refs = this.$refs;
+                if (this.fileView === 'list') {
+                    const table = refs.fileTable;
+                    if (!table) return 0;
+                    const row = table.tBodies[0].rows[0];
+                    return table.tHead.offsetHeight + (row ? row.offsetHeight : 0);
+                }
+                return refs.files && refs.files.firstElementChild ? refs.files.firstElementChild.offsetHeight : 0;
             },
             updateOverflow() {
                 let overflowing = false;
@@ -1072,6 +1207,16 @@
                     this.resizeEditor();
                     this.updateOverflow();
                 });
+            },
+            setFileView(view) {
+                this.fileView = view;
+                storageSet('fileView', view);
+            },
+            // Like the old table: ascending, then descending, then back to upload order.
+            toggleSort(field) {
+                if (this.sort.by !== field) this.sort = {by: field, desc: false};
+                else if (!this.sort.desc) this.sort.desc = true;
+                else this.sort = {by: null, desc: false};
             },
             copyLink() {
                 const url = window.location.protocol + '//' + window.location.host + this.shareUrl;
@@ -1307,7 +1452,9 @@
                 });
             },
             playNextAudio() {
-                const tracks = this.uploads.filter(u => u.is_audio);
+                // Follow the order on screen, so a sorted list plays top to bottom.
+                const order = this.fileView === 'list' ? this.sortedUploads : this.uploads;
+                const tracks = order.filter(u => u.is_audio);
                 const index = tracks.findIndex(u => u.guid === this.audio.guid);
                 if (index !== -1 && index + 1 < tracks.length) this.toggleAudio(tracks[index + 1]);
                 else this.audio.playing = false;
