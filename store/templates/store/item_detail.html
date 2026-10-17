@@ -184,7 +184,6 @@
             position: relative;
             display: grid;
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-            min-height: 46vh;
             background-color: var(--paper);
             background-image:
                 linear-gradient(var(--grid) 1px, transparent 1px),
@@ -193,12 +192,12 @@
             background-position: -1px -1px;
         }
         .work.single { grid-template-columns: minmax(0, 1fr); }
-        .work.collapsed { min-height: 0; }
         .pane { position: relative; min-width: 0; }
         .pane + .pane { border-left: 1px solid var(--line-strong); }
         .scroller { padding: 22px 24px 28px; }
         .collapsed .scroller {
-            height: var(--pane-h, 60vh);
+            /* Grows with the text up to the space left on screen, then scrolls. */
+            max-height: var(--pane-h, 60vh);
             overflow-y: auto;
             overscroll-behavior: contain;
             scrollbar-width: thin;
@@ -222,7 +221,7 @@
         .editor {
             display: block;
             width: 100%;
-            min-height: 40vh;
+            min-height: 120px;
             padding: 0;
             scroll-margin: 24px;
             border: 0;
@@ -233,7 +232,6 @@
             font: 14px/24px var(--mono);
             caret-color: var(--signal);
         }
-        .collapsed .editor { min-height: calc(var(--pane-h, 60vh) - 100px); }
         .editor:focus { outline: none; }
         .editor::placeholder { color: var(--ink-3); }
         .hints { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; }
@@ -529,7 +527,6 @@
             .work { grid-template-columns: minmax(0, 1fr); }
             .pane + .pane { border-left: 0; border-top: 1px solid var(--line-strong); }
             .scroller { padding: 18px 16px 22px; }
-            .editor { min-height: 30vh; }
             .files { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .file-table th, .file-table td { padding-left: 8px; padding-right: 8px; }
             .file-table .col-preview { width: 66px; }
