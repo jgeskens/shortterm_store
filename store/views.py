@@ -3,7 +3,7 @@ import re
 from datetime import timedelta
 
 import uuid
-from hashlib import sha1, sha256
+from hashlib import sha1
 
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
@@ -18,7 +18,7 @@ from django.conf import settings
 from django.contrib.auth.hashers import make_password, check_password
 
 from . import models
-from .access import check_item_password, get_item_password_token
+from .access import OWNER, access_for, check_item_password, get_item_password_token, strip_token
 from . import storage
 from . import utils
 
@@ -87,9 +87,14 @@ def item_detail(request, item_shortcut):
 
         if request.method == 'POST':
             data = json.loads(request.body.decode('utf-8'))
-            if not check_item_password(item, request):
+            if access_for(item, request) != OWNER:
                 return JsonResponse({'error': 'locked'}, status=403)
+            if 'visitor_access' in data and data['visitor_access'] not in dict(models.VISITOR_ACCESS_CHOICES):
+                return JsonResponse({'error': 'invalid visitor_access'}, status=400)
 
+            if 'visitor_access' in data:
+                item.visitor_access = data['visitor_access']
+                item.save()
             if 'text' in data:
                 item.text = data['text']
                 item.save()
@@ -109,7 +114,8 @@ def item_detail(request, item_shortcut):
             return HttpResponse('OK')
 
         if 'json' in request.GET:
-            if not check_item_password(item, request):
+            access = access_for(item, request)
+            if access is None:
                 return JsonResponse({
                     'has_password': True,
                     'error': 'locked',
@@ -117,16 +123,20 @@ def item_detail(request, item_shortcut):
                     'in_db': in_db,
                 }, status=403)
 
+            is_owner = access == OWNER
+            token = get_item_password_token(item)
             return JsonResponse({
                 'in_db': in_db,
+                'viewer': 'owner' if is_owner else 'visitor',
+                'visitor_access': item.visitor_access,
                 'name': item.name,
                 'display_name': item.display_name,
                 'mode': item.mode,
                 'shortcut': item.shortcut,
-                'text': item.text,
+                'text': item.text if is_owner else strip_token(item.text, token),
                 'has_password': bool(item.password),
-                't': get_item_password_token(item),
-                'password_token': get_item_password_token(item),
+                't': token if is_owner else '',
+                'password_token': token if is_owner else '',
                 'short_link_expires': timeuntil(item.shortcut_expires()) if item.shortcut_expires() > now() else None,
                 'short_link_expires_at': item.shortcut_expires().isoformat() if item.shortcut_expires() > now() else None,
                 'uploads': [
@@ -248,7 +258,7 @@ def verify_password(request, item_guid):
 @require_POST
 def upload_delete(request, item_guid, upload_guid):
     item = get_object_or_404(models.Item, guid=item_guid)
-    if not check_item_password(item, request):
+    if access_for(item, request) != OWNER:
         return JsonResponse({'error': 'locked'}, status=403)
     upload = get_object_or_404(models.Upload, item=item, guid=upload_guid)
     storage.delete(upload.key)
@@ -258,7 +268,7 @@ def upload_delete(request, item_guid, upload_guid):
 
 def upload_download(request, item_guid, upload_guid):
     item = get_object_or_404(models.Item, guid=item_guid)
-    if not check_item_password(item, request):
+    if access_for(item, request) is None:
         return HttpResponse('Locked', status=403)
     upload = get_object_or_404(models.Upload, item=item, guid=upload_guid)
     try:
