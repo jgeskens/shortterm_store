@@ -19,7 +19,7 @@ from django.contrib.auth.hashers import make_password, check_password
 
 from . import models
 from .models import DROPBOX
-from .access import OWNER, access_for, check_item_password, get_item_password_token, strip_token
+from .access import OWNER, access_for, get_item_password_token, strip_token
 from . import storage
 from . import utils
 
@@ -108,6 +108,8 @@ def item_detail(request, item_shortcut):
             if 'password' in data:
                 password = data['password']
                 if password:
+                    if not item.password and 'visitor_access' not in data:
+                        item.visitor_access = 'closed'
                     item.password = make_password(password)
                 else:
                     item.password = ''

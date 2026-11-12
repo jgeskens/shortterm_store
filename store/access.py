@@ -60,4 +60,5 @@ def strip_token(text, token):
         return text
     t = re.escape(token)
     text = re.sub(rf'\?t={t}&', '?', text)
-    return re.sub(rf'[?&]t={t}(?![0-9A-Za-z])', '', text)
+    text = re.sub(rf'[?&]t={t}(?![0-9A-Za-z])', '', text)
+    return text.replace(token, '')

@@ -68,3 +68,19 @@ class StripTokenTest(SimpleTestCase):
 
     def test_strip_token_empty_token(self):
         self.assertEqual(strip_token('/d/?t=', ''), '/d/?t=')
+
+
+class StripTokenFormsTest(SimpleTestCase):
+    T = 'b' * 64
+
+    def test_html_escaped_ampersand(self):
+        out = strip_token(f'/d/?x=1&amp;t={self.T}', self.T)
+        self.assertNotIn(self.T, out)
+
+    def test_bare_token(self):
+        out = strip_token(f'my token {self.T} here', self.T)
+        self.assertNotIn(self.T, out)
+
+    def test_url_encoded_inside_other_url(self):
+        out = strip_token(f'http://o.example/?u=http%3A%2F%2Fx%2F%3Ft%3D{self.T}', self.T)
+        self.assertNotIn(self.T, out)

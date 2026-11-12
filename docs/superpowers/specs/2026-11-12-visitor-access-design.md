@@ -87,7 +87,7 @@ Owner = request passes the existing password check. Visitor = it doesn't.
 | Delete a file | allowed | 403 | 403 | 403 |
 | Upload (all three steps) | allowed, same name replaces | 403 | 403 | allowed, same name → numbered copy |
 
-The Read-only and Drop box columns apply on hosts in `NEW_DESIGN_HOSTS` only; on other hosts, visitors get the Closed column. The owner sets `visitor_access` through the existing store POST, next to `password` or on its own. Removing the password leaves the store fully open as today; *my call:* the stored `visitor_access` value is kept, so it reappears if a password is set again. That makes no difference while there is no password.
+The Read-only and Drop box columns apply on hosts in `NEW_DESIGN_HOSTS` only; on other hosts, visitors get the Closed column. The owner sets `visitor_access` through the existing store POST, next to `password` or on its own. Removing the password leaves the store fully open as today; *my call:* setting a password without choosing visitor access resets `visitor_access` to Closed, so a store protected from the classic page is always closed; the stored value otherwise stays (changing an existing password keeps it).
 
 ## Left to the builder
 

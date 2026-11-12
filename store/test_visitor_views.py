@@ -141,3 +141,35 @@ class VisitorViewsTest(TempStorageMixin, TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertFalse(Upload.objects.filter(pk=self.upload.pk).exists())
+
+
+@override_settings(NEW_DESIGN_HOSTS=['testserver'])
+class ClassicPasswordSetTest(TempStorageMixin, TestCase):
+    def make(self, password='', access='dropbox'):
+        guid = str(uuid.uuid4())
+        item = Item.objects.create(
+            guid=guid, password=make_password(password) if password else '', visitor_access=access
+        )
+        return guid, item
+
+    def post(self, guid, data, **extra):
+        return self.client.post(f'/{guid}/', data=json.dumps(data), content_type='application/json', **extra)
+
+    def test_new_password_without_visitor_access_resets_to_closed(self):
+        guid, item = self.make()
+        self.assertEqual(self.post(guid, {'password': 'pw'}).status_code, 200)
+        item.refresh_from_db()
+        self.assertEqual(item.visitor_access, 'closed')
+        self.assertEqual(self.client.get(f'/{guid}/?json').status_code, 403)
+
+    def test_new_password_with_visitor_access_uses_sent_value(self):
+        guid, item = self.make(access='closed')
+        self.post(guid, {'password': 'pw', 'visitor_access': 'read'})
+        item.refresh_from_db()
+        self.assertEqual(item.visitor_access, 'read')
+
+    def test_changing_existing_password_keeps_visitor_access(self):
+        guid, item = self.make(password='old', access='read')
+        self.post(guid, {'password': 'new'}, HTTP_X_ITEM_PASSWORD='old')
+        item.refresh_from_db()
+        self.assertEqual(item.visitor_access, 'read')

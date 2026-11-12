@@ -1090,10 +1090,10 @@
                 return !this.locked && this.viewer === 'visitor';
             },
             canEdit() {
-                return !this.locked && !this.isVisitor;
+                return this.dataLoaded && !this.locked && !this.isVisitor;
             },
             canUpload() {
-                return !this.locked && (!this.isVisitor || this.visitorAccess === 'dropbox');
+                return this.dataLoaded && !this.locked && (!this.isVisitor || this.visitorAccess === 'dropbox');
             },
             visitorTip() {
                 return this.visitorAccess === 'dropbox'
