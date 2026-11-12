@@ -7,6 +7,16 @@ from django.utils.timezone import now
 from . import utils
 
 
+CLOSED = 'closed'
+READ = 'read'
+DROPBOX = 'dropbox'
+VISITOR_ACCESS_CHOICES = [
+    (CLOSED, 'Closed'),
+    (READ, 'Read-only'),
+    (DROPBOX, 'Drop box'),
+]
+
+
 class ItemManager(models.Manager):
     def cleanup_inactive(self):
         self.filter(modified__lt=now() - timedelta(hours=1)).delete()
@@ -25,6 +35,7 @@ class Item(models.Model):
     text = models.TextField(blank=True)
     mode = models.CharField(max_length=255, default='simple')
     password = models.CharField(max_length=128, blank=True)
+    visitor_access = models.CharField(max_length=16, choices=VISITOR_ACCESS_CHOICES, default=CLOSED)
 
     objects = ItemManager()
 

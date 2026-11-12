@@ -5,11 +5,6 @@ from datetime import timedelta
 import uuid
 from hashlib import sha1, sha256
 
-
-def get_item_password_token(item):
-    if not item.password:
-        return ''
-    return sha256((item.password + settings.SECRET_KEY).encode('utf-8')).hexdigest()
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
@@ -23,37 +18,13 @@ from django.conf import settings
 from django.contrib.auth.hashers import make_password, check_password
 
 from . import models
+from .access import check_item_password, get_item_password_token
 from . import storage
 from . import utils
 
 UPLOAD_TOKEN_SALT = 'store.upload'
 # Checked when the upload has fully arrived, so it must cover multi-GB uploads on slow lines.
 UPLOAD_TOKEN_MAX_AGE = 24 * 3600
-
-
-def check_item_password(item, request):
-    if not item.password:
-        return True
-    
-    password = request.headers.get('X-Item-Password')
-    if not password and request.method == 'POST':
-        try:
-            data = json.loads(request.body.decode('utf-8'))
-            password = data.get('password')
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            pass
-    
-    if not password:
-        password = request.GET.get('password')
-    
-    if password and check_password(password, item.password):
-        return True
-    
-    password_token = request.GET.get('t')
-    if password_token and password_token == get_item_password_token(item):
-        return True
-    
-    return False
 
 
 def create_item_from_uuid(item_uuid: str, commit: bool = False) -> models.Item:
