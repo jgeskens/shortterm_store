@@ -820,6 +820,22 @@
     const CSRF_TOKEN = '{{ csrf_token }}';
     const PASSWORD_KEY = 'password-' + ITEM_GUID;
 
+    // Adds the owner token to this store's own upload links when rendering, so it never lives in the text.
+    function withOwnToken(html, token) {
+        if (!token) return html;
+        const prefix = '/' + ITEM_GUID + '/upload/';
+        const template = document.createElement('template');
+        template.innerHTML = html;
+        template.content.querySelectorAll('[src], [href]').forEach((el) => {
+            ['src', 'href'].forEach((attr) => {
+                const value = el.getAttribute(attr);
+                if (!value || !value.startsWith(prefix) || /[?&]t=/.test(value)) return;
+                el.setAttribute(attr, value + (value.indexOf('?') === -1 ? '?' : '&') + 't=' + encodeURIComponent(token));
+            });
+        });
+        return template.innerHTML;
+    }
+
     function storageGet(key) {
         try { return localStorage.getItem(key); } catch (e) { return null; }
     }
@@ -998,7 +1014,7 @@
                 return Math.min(100, Math.round(this.upload.loaded / this.upload.total * 100));
             },
             renderedMarkdown() {
-                return DOMPurify.sanitize(marked.parse(this.text));
+                return withOwnToken(DOMPurify.sanitize(marked.parse(this.text)), this.passwordToken);
             },
             sortedUploads() {
                 if (!this.sort.by) return this.uploads;
@@ -1346,8 +1362,7 @@
                 // Save the placeholder like any edit, or the next poll replaces the text and it's gone.
                 this.onTextInput();
                 this.uploadFile(file, () => {}).then((data) => {
-                    let url = data.url;
-                    if (this.passwordToken) url += '?t=' + encodeURIComponent(this.passwordToken);
+                    const url = data.url;
                     // Select the alt text so typing right away gives the image a title.
                     const description = 'insert image description here';
                     const start = this.text.indexOf(placeholder);
