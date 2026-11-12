@@ -179,6 +179,37 @@
         .seg button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); position: relative; }
         .ctrl-icons { display: flex; gap: 2px; }
 
+        /* Visitor controls: lock with a tooltip, then Unlock to edit */
+        .visitor-ctrl { display: flex; align-items: center; gap: 8px; }
+        .visitor-ctrl .btn { white-space: nowrap; }
+        .lock-badge { position: relative; cursor: help; }
+        .lock-badge .tip {
+            display: none;
+            position: absolute;
+            top: calc(100% + 8px);
+            right: -6px;
+            z-index: 10;
+            width: max-content;
+            max-width: 240px;
+            padding: 7px 10px;
+            background: var(--ink);
+            color: var(--paper);
+            font: 12px/1.4 var(--sans);
+            text-align: left;
+            white-space: normal;
+            pointer-events: none;
+        }
+        .lock-badge .tip::before {
+            content: '';
+            position: absolute;
+            top: -5px;
+            right: 15px;
+            border: 5px solid transparent;
+            border-top: 0;
+            border-bottom-color: var(--ink);
+        }
+        .lock-badge:hover .tip, .lock-badge:focus-visible .tip, .lock-badge.open .tip { display: block; }
+
         /* Workspace on a 24px grid */
         .work {
             position: relative;
@@ -469,6 +500,15 @@
         .pw-dialog > * { padding: 14px 16px; }
         .pw-dialog > * + * { border-top: 1px solid var(--line); }
         .pw-dialog h2 { margin: 4px 0 0; font: 28px/1.1 var(--serif); font-weight: 400; }
+        .pw-dialog .label { display: block; }
+        .access-seg { margin-top: 8px; }
+        .access-seg button { text-transform: uppercase; }
+        .access-seg button:disabled, .pw-dialog .btn:disabled { opacity: 0.45; cursor: default; }
+        .access-seg button:disabled:hover { color: var(--ink-2); }
+        .access-seg button[aria-pressed="true"]:disabled { color: var(--paper); }
+        .pw-dialog .btn:disabled:hover { border-color: var(--line-strong); }
+        .pw-dialog .btn.primary:disabled:hover { border-color: var(--ink); }
+        .access-hint { margin: 8px 0 0; color: var(--ink-2); font-size: 12.5px; }
         .lightbox {
             width: 100vw;
             height: 100vh;
@@ -523,6 +563,9 @@
             .head > div { border-right: 0; border-bottom: 1px solid var(--line); }
             .head > div:last-child { border-bottom: 0; }
             .ctrl-cell { justify-content: space-between; }
+            /* The lock sits at the left edge here, so the tooltip opens to the right. */
+            .lock-badge .tip { right: auto; left: -6px; max-width: min(240px, calc(100vw - 64px)); }
+            .lock-badge .tip::before { right: auto; left: 15px; }
             .title-input { font-size: 30px; }
             .work { grid-template-columns: minmax(0, 1fr); }
             .pane + .pane { border-left: 0; border-top: 1px solid var(--line-strong); }
@@ -574,7 +617,7 @@
             <div class="title-cell">
                 <label class="label" for="title" v-text="'Store / ' + storeLabel"></label>
                 <input id="title" class="title-input" v-model="name" placeholder="Untitled store"
-                       :readonly="locked" autocomplete="off" spellcheck="false"
+                       :readonly="!canEdit" autocomplete="off" spellcheck="false"
                        @focus="editingTitle = true" @blur="saveTitle" @keydown.enter="$event.target.blur()">
             </div>
 
@@ -593,12 +636,20 @@
             </div>
 
             <div class="ctrl-cell">
-                <div class="seg" role="group" aria-label="Mode">
+                <div v-if="isVisitor" class="visitor-ctrl">
+                    <button class="icon-btn on lock-badge" type="button" :class="{open: tipOpen}" :aria-label="visitorTip"
+                            @click="tipOpen = !tipOpen" @blur="tipOpen = false" @keydown.esc="tipOpen = false">
+                        <svg class="icon"><use href="#i-lock"/></svg>
+                        <span class="tip" aria-hidden="true" v-text="visitorTip"></span>
+                    </button>
+                    <button class="btn" type="button" @click="openUnlockDialog">Unlock to edit</button>
+                </div>
+                <div v-else class="seg" role="group" aria-label="Mode">
                     <button v-for="m in modes" :key="m.value" :aria-pressed="mode === m.value" :disabled="locked"
                             @click="setMode(m.value)" :title="m.title" v-text="m.label"></button>
                 </div>
                 <div class="ctrl-icons">
-                    <button class="icon-btn" :class="{on: hasPassword}" @click="openPasswordDialog" :disabled="locked"
+                    <button v-if="!isVisitor" class="icon-btn" :class="{on: hasPassword}" @click="openPasswordDialog" :disabled="locked"
                             :aria-label="hasPassword ? 'Change password' : 'Set password'" :title="hasPassword ? 'Password set' : 'No password'">
                         <svg class="icon"><use :href="hasPassword ? '#i-lock' : '#i-unlock'"/></svg>
                     </button>
@@ -628,10 +679,10 @@
                 <span class="label pane-label" v-if="mode === 'editor'">Source</span>
                 <div class="scroller" ref="scrollEditor" @scroll="updateOverflow">
                     <label class="sr-only" for="editor">Text</label>
-                    <textarea id="editor" ref="editor" class="editor" v-model="text" spellcheck="false"
-                              placeholder="Start typing. Everything saves as you go."
+                    <textarea id="editor" ref="editor" class="editor" v-model="text" spellcheck="false" :readonly="!canEdit"
+                              :placeholder="canEdit ? 'Start typing. Everything saves as you go.' : 'Nothing written yet.'"
                               @input="onTextInput" @keyup="handleKeyup" @paste="handlePaste"></textarea>
-                    <div class="hints label" v-if="!text">
+                    <div class="hints label" v-if="!text && canEdit">
                         <span><kbd>=</kbd> after a sum calculates it</span>
                         <span><kbd>⌘V</kbd> an image to upload it</span>
                         <span>Drop files anywhere</span>
@@ -676,7 +727,7 @@
                                 <span class="arrow" aria-hidden="true" v-text="sort.by === col.field && sort.desc ? '↓' : '↑'"></span>
                             </button>
                         </th>
-                        <th class="col-actions">Actions</th>
+                        <th v-if="canEdit" class="col-actions">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -697,7 +748,7 @@
                         </td>
                         <td><a class="file-name" :href="u.url" v-text="u.filename"></a></td>
                         <td class="file-date" v-text="formatDate(u.modified)"></td>
-                        <td class="col-actions">
+                        <td v-if="canEdit" class="col-actions">
                             <button class="del" :class="{confirm: confirmDelete === u.guid}" @click="deleteUpload(u)"
                                     :aria-label="confirmDelete === u.guid ? 'Confirm delete ' + u.filename : 'Delete ' + u.filename">
                                 <svg class="icon"><use href="#i-trash"/></svg>
@@ -705,8 +756,8 @@
                             </button>
                         </td>
                     </tr>
-                    <tr class="add-row">
-                        <td colspan="4">
+                    <tr v-if="canUpload" class="add-row">
+                        <td :colspan="canEdit ? 4 : 3">
                             <button class="add" @click="$refs.fileInput.click()">
                                 <svg class="icon"><use href="#i-plus"/></svg>
                                 <span class="label" style="color: inherit">Add or drop files</span>
@@ -733,18 +784,18 @@
                         <a :href="u.url" v-text="u.filename" :title="u.filename"></a>
                         <span class="label" v-text="relativeTime(u.modified)" :title="formatDate(u.modified)"></span>
                     </div>
-                    <button class="del" :class="{confirm: confirmDelete === u.guid}" @click="deleteUpload(u)"
+                    <button v-if="canEdit" class="del" :class="{confirm: confirmDelete === u.guid}" @click="deleteUpload(u)"
                             :aria-label="confirmDelete === u.guid ? 'Confirm delete ' + u.filename : 'Delete ' + u.filename">
                         <svg class="icon"><use href="#i-trash"/></svg>
                         <span v-if="confirmDelete === u.guid">DELETE?</span>
                     </button>
                 </div>
-                <button class="add" @click="$refs.fileInput.click()">
+                <button v-if="canUpload" class="add" @click="$refs.fileInput.click()">
                     <svg class="icon"><use href="#i-plus"/></svg>
                     <span class="label" style="color: inherit">Add or drop files</span>
                 </button>
             </div>
-            <input ref="fileInput" type="file" multiple hidden @change="onFilesPicked">
+            <input v-if="canUpload" ref="fileInput" type="file" multiple hidden @change="onFilesPicked">
         </template>
 
         <footer class="status label" ref="status">
@@ -764,16 +815,39 @@
     <div v-if="dragging" class="drop"><div>DROP TO UPLOAD</div></div>
 
     <dialog ref="pwDialog" class="pw-dialog" @close="newPassword = ''">
-        <form method="dialog" @submit.prevent="setPassword(newPassword)">
-            <div><span class="label" v-text="hasPassword ? 'Password set' : 'No password'"></span><h2 v-text="hasPassword ? 'Change password' : 'Set a password'"></h2></div>
+        <form method="dialog" @submit.prevent="saveProtection">
+            <div><span class="label" v-text="hasPassword ? 'Password set' : 'No password'"></span><h2>Protect this store</h2></div>
             <div>
                 <label class="sr-only" for="new-pw">New password</label>
                 <input id="new-pw" class="field" type="password" v-model="newPassword" placeholder="New password" autocomplete="new-password">
             </div>
+            <div>
+                <span class="label" id="visitor-access-label">Visitors without password</span>
+                <div class="seg access-seg" role="group" aria-labelledby="visitor-access-label">
+                    <button v-for="a in accessOptions" :key="a.value" type="button" :aria-pressed="newVisitorAccess === a.value"
+                            :disabled="!hasPassword && !newPassword" @click="newVisitorAccess = a.value" v-text="a.label"></button>
+                </div>
+                <p class="access-hint" v-text="accessHint"></p>
+            </div>
             <div class="btn-row">
                 <button v-if="hasPassword" class="btn danger" type="button" @click="setPassword('')" style="margin-right: auto">Remove</button>
                 <button class="btn" type="button" @click="$refs.pwDialog.close()">Cancel</button>
-                <button class="btn primary" type="submit">Set</button>
+                <button class="btn primary" type="submit" :disabled="!hasPassword && !newPassword">Save</button>
+            </div>
+        </form>
+    </dialog>
+
+    <dialog ref="unlockDialog" class="pw-dialog" @close="inputPassword = ''; unlockError = ''">
+        <form method="dialog" @submit.prevent="verifyPassword">
+            <div><span class="label">Unlock to edit</span><h2>Enter the password</h2></div>
+            <div>
+                <label class="sr-only" for="unlock-dialog-pw">Password</label>
+                <input id="unlock-dialog-pw" class="field" type="password" v-model="inputPassword" autocomplete="current-password" @input="unlockError = ''">
+                <p v-if="unlockError" class="error-text" v-text="unlockError"></p>
+            </div>
+            <div class="btn-row">
+                <button class="btn" type="button" @click="$refs.unlockDialog.close()">Cancel</button>
+                <button class="btn primary" type="submit">Unlock</button>
             </div>
         </form>
     </dialog>
@@ -898,6 +972,15 @@
                 inDb: false,
                 locked: false,
                 hasPassword: false,
+                viewer: 'owner',
+                visitorAccess: 'closed',
+                newVisitorAccess: 'read',
+                accessOptions: [
+                    {value: 'closed', label: 'Closed', hint: 'Only people with the password can see this store.'},
+                    {value: 'read', label: 'Read-only', hint: "They can view and download, but can't change or delete anything."},
+                    {value: 'dropbox', label: 'Drop box', hint: "They can view, download and add files, but can't change or delete what's here."}
+                ],
+                tipOpen: false,
                 shortcut: '',
                 shortLinkExpiresAt: null,
                 passwordToken: '',
@@ -961,6 +1044,10 @@
         },
         mounted() {
             window.addEventListener('resize', () => this.measureLayout());
+            // Touch screens have no hover: a tap opens the lock's tooltip and a tap elsewhere closes it.
+            document.addEventListener('click', (event) => {
+                if (this.tipOpen && !event.target.closest('.lock-badge')) this.tipOpen = false;
+            });
             // Re-measure when anything around the panes changes size: fonts, uploads arriving, a locked store opening.
             // Setting the same height again doesn't resize anything, so this settles after one pass.
             new ResizeObserver(() => requestAnimationFrame(() => this.measureLayout())).observe(document.querySelector('.frame'));
@@ -999,9 +1086,28 @@
             themeIcon() {
                 return {auto: '#i-auto', on: '#i-moon', off: '#i-sun'}[this.theme] || '#i-auto';
             },
+            isVisitor() {
+                return !this.locked && this.viewer === 'visitor';
+            },
+            canEdit() {
+                return !this.locked && !this.isVisitor;
+            },
+            canUpload() {
+                return !this.locked && (!this.isVisitor || this.visitorAccess === 'dropbox');
+            },
+            visitorTip() {
+                return this.visitorAccess === 'dropbox'
+                    ? "Drop box. You can view, download and add files, but not change or delete what's here."
+                    : 'Read-only. You can view and download, but not change anything.';
+            },
+            accessHint() {
+                const option = this.accessOptions.find(a => a.value === this.newVisitorAccess);
+                return option ? option.hint : '';
+            },
             saveLabel() {
                 if (!this.dataLoaded) return 'Loading…';
                 if (this.locked) return 'Locked';
+                if (this.isVisitor) return this.visitorAccess === 'dropbox' ? 'Drop box' : 'Read-only';
                 return {
                     pending: 'Editing…',
                     saving: 'Saving…',
@@ -1076,6 +1182,7 @@
                         if (response.status === 403) {
                             this.locked = true;
                             this.hasPassword = true;
+                            this.viewer = 'owner';
                             this.displayName = data.display_name;
                             this.name = data.display_name;
                             document.title = data.display_name;
@@ -1098,6 +1205,8 @@
                 this.displayName = data.display_name;
                 this.inDb = data.in_db;
                 this.hasPassword = data.has_password;
+                this.viewer = data.viewer || 'owner';
+                this.visitorAccess = data.visitor_access || 'closed';
                 this.shortcut = data.shortcut;
                 this.shortLinkExpiresAt = data.short_link_expires_at;
                 this.passwordToken = data.password_token;
@@ -1159,7 +1268,7 @@
             },
             saveTitle() {
                 this.editingTitle = false;
-                if (!this.dataLoaded || this.locked) return;
+                if (!this.dataLoaded || !this.canEdit) return;
                 this.save({name: this.name.trim()});
             },
             resizeEditor() {
@@ -1242,7 +1351,27 @@
                 this.theme = {auto: 'off', off: 'on', on: 'auto'}[this.theme] || 'auto';
             },
             openPasswordDialog() {
+                this.newVisitorAccess = this.hasPassword ? this.visitorAccess : 'read';
                 this.$refs.pwDialog.showModal();
+            },
+            // Saves the visitor setting, and the password too when one was typed. An empty field keeps the password.
+            saveProtection() {
+                const password = this.newPassword;
+                if (!this.hasPassword && !password) return;
+                const data = {visitor_access: this.newVisitorAccess};
+                if (password) data.password = password;
+                postJson(ITEM_PATH, data).then((response) => {
+                    if (!response.ok) throw new Error('failed');
+                    if (password) storageSet(PASSWORD_KEY, password);
+                    this.$refs.pwDialog.close();
+                    this.showToast(password ? 'Password set' : 'Visitor access saved');
+                    this.update();
+                }).catch(() => this.showToast('Not saved. Try again.', true));
+            },
+            openUnlockDialog() {
+                this.tipOpen = false;
+                this.unlockError = '';
+                this.$refs.unlockDialog.showModal();
             },
             setPassword(password) {
                 postJson(ITEM_PATH, {password: password}).then((response) => {
@@ -1264,6 +1393,7 @@
                         storageSet(PASSWORD_KEY, this.inputPassword);
                         this.inputPassword = '';
                         this.locked = false;
+                        if (this.$refs.unlockDialog.open) this.$refs.unlockDialog.close();
                         this.update();
                     } else {
                         storageRemove(PASSWORD_KEY);
@@ -1302,7 +1432,7 @@
             },
             uploadFiles(files) {
                 files = Array.from(files);
-                if (!files.length || this.locked) return;
+                if (!files.length || !this.canUpload) return;
                 if (this.upload.active) {
                     this.upload.count += files.length;
                     this.upload.total += files.reduce((sum, f) => sum + f.size, 0);
@@ -1339,7 +1469,7 @@
                 event.target.value = '';
             },
             onDragEnter(event) {
-                if (this.locked || !Array.from(event.dataTransfer.types).includes('Files')) return;
+                if (!this.canUpload || !Array.from(event.dataTransfer.types).includes('Files')) return;
                 this.dragDepth += 1;
             },
             onDragLeave() {
@@ -1350,7 +1480,7 @@
                 if (event.dataTransfer.files.length) this.uploadFiles(event.dataTransfer.files);
             },
             handlePaste(event) {
-                if (!event.clipboardData.files.length) return;
+                if (!this.canEdit || !event.clipboardData.files.length) return;
                 event.preventDefault();
                 const original = event.clipboardData.files[0];
                 const extension = (original.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
@@ -1409,6 +1539,7 @@
 
             // Calculator: typing "=" after an expression appends its result
             handleKeyup(event) {
+                if (!this.canEdit) return;
                 const input = event.target;
                 const pos = input.selectionStart;
                 if (input.value[pos - 1] !== '=' || event.key !== '=') return;
