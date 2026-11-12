@@ -192,3 +192,34 @@ class DropboxTempFileUploadTest(DropboxUploadTest):
             self.assertEqual(self.send_file(params, b'mine').status_code, 409)
         self.assertEqual((self.storage_root / self.guid / 'a.txt').read_bytes(), b'other')
         self.assertEqual(self.folder_files(), ['a.txt'])
+
+
+@override_settings(NEW_DESIGN_HOSTS=['testserver'])
+class VisitorMultipartCsrfTest(TempStorageMixin, TestCase):
+    """The real app's CSRF middleware reads request.POST first, so request.body is unreadable."""
+
+    def setUp(self):
+        super().setUp()
+        self.guid = str(uuid.uuid4())
+        self.item = Item.objects.create(guid=self.guid, password=make_password('pw'), visitor_access=DROPBOX)
+        self.client = self.client_class(enforce_csrf_checks=True)
+        self.client.get(f'/{self.guid}/')
+        self.csrf = self.client.cookies['csrftoken'].value
+
+    def post_params(self, filename):
+        return self.client.post(
+            f'/{self.guid}/generate-upload-params/', {'filename': filename}, HTTP_X_CSRFTOKEN=self.csrf
+        )
+
+    def test_dropbox_visitor_params_with_csrf(self):
+        path = self.storage_root / self.guid / 'a.txt'
+        path.parent.mkdir(parents=True)
+        path.write_bytes(b'x')
+        response = self.post_params('a.txt')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['fields']['key'], f'{self.guid}/a (2).txt')
+
+    def test_read_visitor_params_with_csrf(self):
+        self.item.visitor_access = 'read'
+        self.item.save()
+        self.assertEqual(self.post_params('a.txt').status_code, 403)

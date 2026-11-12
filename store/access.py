@@ -21,7 +21,7 @@ def check_item_password(item, request):
         return True
 
     password = request.headers.get('X-Item-Password')
-    if not password and request.method == 'POST':
+    if not password and request.method == 'POST' and request.content_type == 'application/json':
         try:
             data = json.loads(request.body.decode('utf-8'))
             password = data.get('password')
