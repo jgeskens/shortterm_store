@@ -1,4 +1,5 @@
 """Uploaded files on local disk, stored at STORAGE_ROOT/<item_guid>/<filename>."""
+import errno
 import mimetypes
 import os
 import shutil
@@ -50,35 +51,56 @@ def path_for_key(key):
     return path
 
 
+def _remove(name):
+    try:
+        os.unlink(name)
+    except OSError:
+        pass
+
+
+def _save_without_replacing(source, path):
+    """Link source into place; copy it next to path first if it is on another filesystem."""
+    local = None
+    try:
+        try:
+            # os.link fails if the target exists, so two racing uploads can't both win.
+            os.link(source, path)
+        except OSError as e:
+            if e.errno != errno.EXDEV:
+                raise
+            with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as out:
+                local = out.name
+                with open(source, 'rb') as src:
+                    shutil.copyfileobj(src, out)
+            os.chmod(local, FILE_MODE)
+            os.link(local, path)
+    finally:
+        _remove(source)
+        if local:
+            _remove(local)
+
+
 def save(key, uploaded_file, replace=True):
     """Write the file at key. With replace=False, raise FileExistsError rather than overwrite."""
     path = path_for_key(key)
     path.parent.mkdir(parents=True, exist_ok=True)
     if hasattr(uploaded_file, 'temporary_file_path'):
         temp_name = uploaded_file.temporary_file_path()
+        if replace:
+            shutil.move(temp_name, path)
+        else:
+            os.chmod(temp_name, FILE_MODE)
+            _save_without_replacing(temp_name, path)
     else:
         with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as out:
             for chunk in uploaded_file.chunks():
                 out.write(chunk)
-        temp_name = out.name
-    try:
-        os.chmod(temp_name, FILE_MODE)
         if replace:
-            if hasattr(uploaded_file, 'temporary_file_path'):
-                shutil.move(temp_name, path)
-            else:
-                os.replace(temp_name, path)
+            os.replace(out.name, path)
         else:
-            # os.link fails if the target exists, so two racing uploads can't both win.
-            os.link(temp_name, path)
-            os.unlink(temp_name)
-    except BaseException:
-        if not replace:
-            try:
-                os.unlink(temp_name)
-            except OSError:
-                pass
-        raise
+            os.chmod(out.name, FILE_MODE)
+            _save_without_replacing(out.name, path)
+    os.chmod(path, FILE_MODE)
     return path
 
 

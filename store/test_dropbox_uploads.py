@@ -1,4 +1,7 @@
+import errno
 import json
+import os
+from unittest import mock
 import uuid
 
 from django.contrib.auth.hashers import make_password
@@ -130,3 +133,62 @@ class DropboxUploadTest(TempStorageMixin, TestCase):
                   'fields': {'key': key, 'token': signing.dumps(key, salt=views.UPLOAD_TOKEN_SALT)}}
         self.assertEqual(self.send_file(params, b'new').status_code, 204)
         self.assertEqual((self.storage_root / self.guid / 'a.txt').read_bytes(), b'new')
+
+
+
+@override_settings(FILE_UPLOAD_MAX_MEMORY_SIZE=0)
+class DropboxTempFileUploadTest(DropboxUploadTest):
+    """Same flow, but uploads arrive as temporary files (the temporary_file_path branch)."""
+
+    def folder_files(self):
+        return sorted(p.name for p in (self.storage_root / self.guid).iterdir())
+
+    def test_temp_file_upload_is_not_in_memory(self):
+        params = self.get_params('big.bin').json()
+        data = dict(params['fields'])
+        data['file'] = SimpleUploadedFile('file.bin', b'x')
+        with mock.patch('store.storage.os.link', wraps=os.link) as link:
+            self.assertEqual(self.client.post(params['url'], data).status_code, 204)
+        self.assertEqual(link.call_count, 1)
+        self.assertEqual(self.folder_files(), ['big.bin'])
+
+    def test_temp_file_conflict_leaves_no_temp_files(self):
+        params = self.get_params('a.txt').json()
+        self.put_file('a.txt', b'other')
+        self.assertEqual(self.send_file(params, b'mine').status_code, 409)
+        self.assertEqual((self.storage_root / self.guid / 'a.txt').read_bytes(), b'other')
+        self.assertEqual(self.folder_files(), ['a.txt'])
+
+    def test_cross_device_fallback_copies_then_links(self):
+        params = self.get_params('a.txt').json()
+        real_link = os.link
+        calls = []
+
+        def link(src, dst):
+            calls.append(src)
+            if len(calls) == 1:
+                raise OSError(errno.EXDEV, 'cross-device')
+            return real_link(src, dst)
+
+        with mock.patch('store.storage.os.link', side_effect=link):
+            self.assertEqual(self.send_file(params, b'mine').status_code, 204)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual((self.storage_root / self.guid / 'a.txt').read_bytes(), b'mine')
+        self.assertEqual(self.folder_files(), ['a.txt'])
+
+    def test_cross_device_fallback_still_refuses_overwrite(self):
+        params = self.get_params('a.txt').json()
+        self.put_file('a.txt', b'other')
+        real_link = os.link
+        calls = []
+
+        def link(src, dst):
+            calls.append(src)
+            if len(calls) == 1:
+                raise OSError(errno.EXDEV, 'cross-device')
+            return real_link(src, dst)
+
+        with mock.patch('store.storage.os.link', side_effect=link):
+            self.assertEqual(self.send_file(params, b'mine').status_code, 409)
+        self.assertEqual((self.storage_root / self.guid / 'a.txt').read_bytes(), b'other')
+        self.assertEqual(self.folder_files(), ['a.txt'])
