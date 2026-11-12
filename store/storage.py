@@ -50,18 +50,55 @@ def path_for_key(key):
     return path
 
 
-def save(key, uploaded_file):
+def save(key, uploaded_file, replace=True):
+    """Write the file at key. With replace=False, raise FileExistsError rather than overwrite."""
     path = path_for_key(key)
     path.parent.mkdir(parents=True, exist_ok=True)
     if hasattr(uploaded_file, 'temporary_file_path'):
-        shutil.move(uploaded_file.temporary_file_path(), path)
+        temp_name = uploaded_file.temporary_file_path()
     else:
         with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as out:
             for chunk in uploaded_file.chunks():
                 out.write(chunk)
-        os.replace(out.name, path)
-    os.chmod(path, FILE_MODE)
+        temp_name = out.name
+    try:
+        os.chmod(temp_name, FILE_MODE)
+        if replace:
+            if hasattr(uploaded_file, 'temporary_file_path'):
+                shutil.move(temp_name, path)
+            else:
+                os.replace(temp_name, path)
+        else:
+            # os.link fails if the target exists, so two racing uploads can't both win.
+            os.link(temp_name, path)
+            os.unlink(temp_name)
+    except BaseException:
+        if not replace:
+            try:
+                os.unlink(temp_name)
+            except OSError:
+                pass
+        raise
     return path
+
+
+def _numbered(name, n):
+    stem, ext = os.path.splitext(name)
+    if not stem:  # dotfile such as ".env"
+        stem, ext = name, ''
+    return f'{stem} ({n}){ext}'
+
+
+def free_key_for(item_guid, filename, taken):
+    """Key for filename that is neither in taken nor on disk, numbering it if needed."""
+    name = clean_filename(filename)
+    n = 1
+    while True:
+        candidate = name if n == 1 else _numbered(name, n)
+        key = key_for(item_guid, candidate)
+        if key not in taken and not path_for_key(key).exists():
+            return key
+        n += 1
 
 
 def delete(key):

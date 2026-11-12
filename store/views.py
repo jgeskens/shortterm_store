@@ -18,6 +18,7 @@ from django.conf import settings
 from django.contrib.auth.hashers import make_password, check_password
 
 from . import models
+from .models import DROPBOX
 from .access import OWNER, access_for, check_item_password, get_item_password_token, strip_token
 from . import storage
 from . import utils
@@ -189,17 +190,23 @@ def open_store(request):
 @require_POST
 def generate_upload_params(request, item_guid):
     item = get_or_create_item(item_guid)
-    if not check_item_password(item, request):
+    access = access_for(item, request)
+    if access not in (OWNER, DROPBOX):
         return JsonResponse({'error': 'locked'}, status=403)
+    replace = access == OWNER
     try:
-        key = storage.key_for(item.guid, request.POST.get('filename', ''))
+        if replace:
+            key = storage.key_for(item.guid, request.POST.get('filename', ''))
+        else:
+            taken = set(item.uploads.values_list('key', flat=True))
+            key = storage.free_key_for(item.guid, request.POST.get('filename', ''), taken)
     except storage.InvalidKey:
         return JsonResponse({'error': 'invalid filename'}, status=400)
     return JsonResponse({
         'url': reverse('upload_receive', args=(str(item.guid),)),
         'fields': {
             'key': key,
-            'token': signing.dumps(key, salt=UPLOAD_TOKEN_SALT),
+            'token': signing.dumps({'key': key, 'replace': replace}, salt=UPLOAD_TOKEN_SALT),
         },
     })
 
@@ -210,34 +217,46 @@ def upload_receive(request, item_guid):
     # Authorized by the signed token from generate_upload_params, like an S3 presigned POST.
     key = request.POST.get('key', '')
     try:
-        signed_key = signing.loads(
+        payload = signing.loads(
             request.POST.get('token', ''), salt=UPLOAD_TOKEN_SALT, max_age=UPLOAD_TOKEN_MAX_AGE
         )
     except signing.BadSignature:
         return JsonResponse({'error': 'invalid token'}, status=403)
+    if isinstance(payload, dict):
+        signed_key, replace = payload.get('key'), bool(payload.get('replace'))
+    else:  # old plain-string tokens were only issued to owners
+        signed_key, replace = payload, True
     if signed_key != key or key.split('/', 1)[0] != item_guid:
         return JsonResponse({'error': 'invalid token'}, status=403)
     uploaded_file = request.FILES.get('file')
     if uploaded_file is None:
         return JsonResponse({'error': 'no file'}, status=400)
-    storage.save(key, uploaded_file)
+    try:
+        storage.save(key, uploaded_file, replace=replace)
+    except FileExistsError:
+        return JsonResponse({'error': 'exists'}, status=409)
     return HttpResponse(status=204)
 
 
 @require_POST
 def upload(request, item_guid):
     item = get_or_create_item(item_guid)
-    if not check_item_password(item, request):
+    access = access_for(item, request)
+    if access not in (OWNER, DROPBOX):
         return JsonResponse({'error': 'locked'}, status=403)
     data = json.loads(request.body.decode('utf-8'))
     assert 'url' in data and 'key' in data
     # Never trust the client's key: it must live under this item.
     try:
         key = storage.key_for(item.guid, data['key'].rsplit('/', 1)[-1])
+        if access == DROPBOX and not storage.path_for_key(key).is_file():
+            return JsonResponse({'error': 'no file'}, status=400)
     except storage.InvalidKey:
         return JsonResponse({'error': 'invalid filename'}, status=400)
     u, created = models.Upload.objects.get_or_create(item=item, key=key, defaults={'url': data['url'][:255]})
     if not created:
+        if access == DROPBOX:
+            return JsonResponse({'error': 'exists'}, status=409)
         u.modified = now()
         u.save()
     return JsonResponse({
